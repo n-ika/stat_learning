@@ -6,3 +6,5 @@ __pycache__/
 rnn*/
 *results*/
 *.ipynb
+*.npz
+models_testing_params/
