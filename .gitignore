@@ -8,3 +8,4 @@ rnn*/
 *.ipynb
 *.npz
 models_testing_params/
+tmp/
