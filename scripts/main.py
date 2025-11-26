@@ -11,7 +11,8 @@ from models import *
 import argparse
 
 def main(args):
-    root = args.root
+    in_root = args.in_root
+    out_root = args.out_root
     model_arch = args.model_arch
     batch_size_train = args.batch_size_train
     batch_size_test = args.batch_size_test
@@ -39,24 +40,25 @@ def main(args):
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
-    for model_type in ['onehot', 'phon', 'acoustic_new_norm']:
-        for stim_type in ['unigram','bigram','zerovec-bigram']: 
+    for model_type in ['acoustic_new_norm']: #'onehot', 'phon', #TODO
+        for stim_type in ['zerovec-bigram']: #'unigram', 'bigram', #TODO
             input_type = stim_type + '_data'
             for exp in [1,2]:
                 if exp==1:
-                    root_exp = root+'simulation_one/'
+                    root_exp = in_root+'simulation_one/'
                 elif exp==2:
-                    root_exp = root+'simulation_two/'
+                    root_exp = in_root+'simulation_two/'
                 if model_arch == 'AE':
-                    root_dir = root+f'/ae_results_{loss_type}/' #FIXME
+                    root_dir = out_root+f'/ae_results_{loss_type}/' #FIXME
                 elif model_arch == 'RNN':
-                    root_dir = root+f'/rnn_results_{loss_type}{optional}/' #FIXME
+                    root_dir = out_root+f'/rnn_results_{loss_type}{optional}/' #FIXME
                 res_dir = root_dir+f'/{input_type}/out/'
                 os.makedirs(res_dir,exist_ok=True)
                 model_dir = root_dir+f'/{input_type}/models/exp_{exp}/{model_type}/' #_{bottleneck_size}_{num_layer}_{hidden_size}
                 os.makedirs(model_dir,exist_ok=True)
 
-                device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                print('Using device:', device)
 
                 syll_vec,in_loader,out_loader,test_in_loader,test_out_loader = load_all_data(root_exp,
                                                                                              model_type,
@@ -86,7 +88,7 @@ def main(args):
                         #                  loss_type=loss_type).to(device)
                     optimizer = torch.optim.Adam(model.parameters(),lr=lr)
 
-                    print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, '
+                    print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
                           f'number: {simulation_num}, train batch: {batch_size_train}, test batch: {batch_size_test}')   
                     out_name = (
                             f"{model_type}_{bottleneck_size}_exp-{exp}_n-{simulation_num}_lr-{lr}_train-{int(batch_size_train)}_test"
@@ -123,7 +125,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', '-r', type=str, help='Root directory for data and results', 
+    parser.add_argument('--in_root', '-ir', type=str, help='Root directory for data', 
+                        default='/projects/jurovlab/stat_learning/')
+    parser.add_argument('--out_root', '-or', type=str, help='Root directory for results', 
                         default='/projects/jurovlab/stat_learning/')
     parser.add_argument('--model_arch', '-ma', type=str, choices=['AE', 'RNN'], default='AE', help='Model architectures to run')
     parser.add_argument('--batch_size_train', '-btr', type=int, default=1, help='Training batch size')
