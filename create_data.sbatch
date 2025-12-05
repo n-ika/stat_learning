@@ -13,12 +13,12 @@
 #SBATCH --ntasks=1                       ### Number of tasks included in the job
 #SBATCH --mem-per-cpu=16G                ### Total Memory for job in MB -- can do K/M/G/T for KB/MB/GB/TB
 #SBATCH --ntasks-per-node=1              ### Number of tasks to be launched per Node
-#SBATCH --cpus-per-task=1                ### Number of cpus/cores to be launched per Task
+#SBATCH --cpus-per-task=16                ### Number of cpus/cores to be launched per Task
 
 module purge
 module load miniconda3/20240410
 source $(conda info --base)/etc/profile.d/conda.sh  # ensure conda commands work
-conda activate stat_learning_env
+conda activate statenv
 ### Run your actual program
 srun -u $(which python) $ROOT_PATH/scripts/create_data.py
 conda deactivate

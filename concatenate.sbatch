@@ -20,7 +20,7 @@
 module purge
 module load miniconda3/20240410
 source $(conda info --base)/etc/profile.d/conda.sh  # ensure conda commands work
-conda activate stat_learning_env
+conda activate statenv
 
 ### Run your actual program
 # srun -u $(which python) $ROOT_PATH/scripts/main.py 

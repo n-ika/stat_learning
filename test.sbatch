@@ -9,8 +9,8 @@
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
 #SBATCH --gpus=1              ### General REServation of gpu:number of gpus
-#SBATCH --output=%x-%j.out               ### File in which to store job output
-#SBATCH --error=%x-%j.err                ### File in which to store job error messages
+#SBATCH --output=tmp/%x-%j.out               ### File in which to store job output
+#SBATCH --error=tmp/%x-%j.err                ### File in which to store job error messages
 #SBATCH --mem=500M                       ### Total Memory for job in MB -- can do K/M/G/T for KB/MB/GB/TB
 #SBATCH --cpus-per-task=1                ### Number of cpus/cores to be launched per Task
 
@@ -24,7 +24,7 @@ module purge
 module load cuda/12.4.1
 module load miniconda3/20240410
 source $(conda info --base)/etc/profile.d/conda.sh  # ensure conda commands work
-conda activate gpu_env
+conda activate statenv
 module list
 
 ### Run your actual program

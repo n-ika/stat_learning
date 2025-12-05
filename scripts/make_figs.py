@@ -8,9 +8,10 @@ import sys
 model_type=sys.argv[1]
 loss_type=sys.argv[2]  # 'mse' or 'ce'
 
-root_out = f'/projects/jurovlab/stat_learning/results/plots/'
+root_out = f'/projects/jurovlab/stat_learning/results/stats/'
 root_in=f'/projects/jurovlab/stat_learning/results/'
 os.makedirs(root_out, exist_ok=True)
+os.makedirs(root_out+'plots/', exist_ok=True)
 
 def plot_lm(df, stim_type, EXP, root_out=root_out, loss_type=loss_type):
     g = sns.lmplot(data=df[df.exp==EXP],
@@ -31,7 +32,7 @@ def plot_lm(df, stim_type, EXP, root_out=root_out, loss_type=loss_type):
     titles = ['Onehot', 'Phoneme Embedding', 'Acoustic Features']
     for ax, title in zip(g.axes[0], titles):  # for columns
         ax.set_title(title)
-    plt.savefig(root_out+f'/{stim_type}_exp{EXP}_lmplot.png',bbox_inches='tight', 
+    plt.savefig(root_out+f'plots/{stim_type}_exp{EXP}_lmplot.png',bbox_inches='tight', 
                 dpi=300)
     plt.close()
 
@@ -46,7 +47,7 @@ def plot_line(df, stim_type, root_out=root_out, loss_type=loss_type):
             col_order=['onehot','phon','acoustic_new_norm'],
             hue_order=['Word','Part-Word'],
             style='stat_type',
-            style_order=['avg_loss', 'min_loss', 'max_loss', 'q1_loss', 'q3_loss'],
+            style_order=['median', 'min', 'max', 'q1', 'q3'],
             kind='line',
             facet_kws={"sharey": False}
             )
@@ -57,7 +58,7 @@ def plot_line(df, stim_type, root_out=root_out, loss_type=loss_type):
     titles = ['Onehot', 'Phoneme Embedding', 'Acoustic Features']
     for ax, title in zip(g.axes[0], titles):  # for columns
         ax.set_title(title)
-    plt.savefig(root_out+f'/{stim_type}_btcep.png',bbox_inches='tight', 
+    plt.savefig(root_out+f'plots/{stim_type}_btcep.png',bbox_inches='tight', 
                 dpi=300)
     plt.close()
 
@@ -68,11 +69,11 @@ id_cols = ['model_type','exp',
         'stim_type']
 
 def get_stat_point(df,cols=id_cols):
-    df_stat = df.groupby(cols).agg(avg_loss=("loss", "mean"),
-                                            min_loss=("loss", "min"),
-                                            max_loss=("loss", "max"),
-                                            q1_loss=("loss", lambda x: x.quantile(0.25)),
-                                            q3_loss=("loss", lambda x: x.quantile(0.75))
+    df_stat = df.groupby(cols).agg(median=("loss", "median"),
+                                            min=("loss", "min"),
+                                            max=("loss", "max"),
+                                            q1=("loss", lambda x: x.quantile(0.25)),
+                                            q3=("loss", lambda x: x.quantile(0.75))
                                             ).reset_index()
     return df_stat
 
@@ -80,14 +81,15 @@ def get_stat_point(df,cols=id_cols):
 for stim_type in ['unigram','bigram','zerobigram']:
     df = pd.read_csv(root_in+f'{model_type}_{stim_type}_{loss_type}.csv',compression='gzip')
     df['btc_ep']=df['batch_id']+(df['epochs'])*809
+    df.loc[df['epochs']>=1,'btc_ep'] -= 808
     df_stat = get_stat_point(df)
     df_melt = pd.melt(df_stat, 
         id_vars=id_cols,
-        value_vars=["avg_loss", "min_loss", "max_loss", "q1_loss", "q3_loss"], 
+        value_vars=["median", "min", "max", "q1", "q3"], 
         var_name="stat_type", 
         value_name="loss")
-    df_melt.to_csv(root_out+f'{stim_type}_{loss_type}_stat_df.csv',compression='gzip')
-    plot_line(df_melt, stim_type)
+    df_melt.to_csv(root_out+f'{stim_type}_{model_type}_df.csv',compression='gzip')
+    # plot_line(df_melt, stim_type)
 
         
 

@@ -4,7 +4,7 @@
 
 #SBATCH --account=jurovlab   ### Account used for job submission
 #SBATCH --partition=gpu       ### Similar to a queue in PBS
-#SBATCH --job-name=GPU_acoustic     ### Job Name
+#SBATCH --job-name=train_acoustic     ### Job Name
 #SBATCH --time=0-10:00:00     ### Wall clock time limit in Days-HH:MM:SS
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
@@ -24,8 +24,8 @@ module purge
 module load cuda/12.4.1
 module load miniconda3/20240410
 source $(conda info --base)/etc/profile.d/conda.sh  # ensure conda commands work
-conda activate stat_learning_env
-nvidia-smi  # check that gpu is visible
+conda activate statenv
+# nvidia-smi  # check that gpu is visible
 
 ### Run your actual program
 srun -u $(which python) $ROOT_PATH/scripts/main.py 

@@ -40,8 +40,8 @@ def main(args):
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
-    for model_type in ['acoustic_new_norm']: #'onehot', 'phon', #TODO
-        for stim_type in ['zerovec-bigram']: #'unigram', 'bigram', #TODO
+    for model_type in ['acoustic_vec_1']:#,'acoustic_vec_2','acoustic_vec_4','acoustic_vec_7','acoustic_vec_14']: #, 'acoustic_new_norm', 'onehot', 'phon']: #TODO
+        for stim_type in ['unigram']: #, 'zerovec-bigram', 'bigram']: #TODO
             input_type = stim_type + '_data'
             for exp in [1,2]:
                 if exp==1:
@@ -49,7 +49,7 @@ def main(args):
                 elif exp==2:
                     root_exp = in_root+'simulation_two/'
                 if model_arch == 'AE':
-                    root_dir = out_root+f'/ae_results_{loss_type}/' #FIXME
+                    root_dir = out_root+f'/ae_results_{loss_type}{optional}/' #FIXME
                 elif model_arch == 'RNN':
                     root_dir = out_root+f'/rnn_results_{loss_type}{optional}/' #FIXME
                 res_dir = root_dir+f'/{input_type}/out/'
@@ -71,8 +71,12 @@ def main(args):
 
                 for simulation_num in range(1,num_simulations+1):
                     if model_arch == 'AE':
+                        if model_type.startswith('acoustic_vec'):
+                            out_size = [1,16] #TODO
+                        else:
+                            out_size = syll_vec['pi'].shape[1:]
                         model = AE(input_size=batch_sample[0].shape[1:],
-                                   output_size=syll_vec['pi'].shape[1:],
+                                   output_size=out_size,
                                    hidden_size=hidden_size,
                                    num_layers=num_layer,
                                    bottleneck_size=bottleneck_size,
