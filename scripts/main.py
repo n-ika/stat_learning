@@ -40,7 +40,7 @@ def main(args):
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
-    for model_type in ['acoustic_vec_1']:#,'acoustic_vec_2','acoustic_vec_4','acoustic_vec_7','acoustic_vec_14']: #, 'acoustic_new_norm', 'onehot', 'phon']: #TODO
+    for model_type in ['acoustic_vec_1']:#, 'acoustic_new_norm', 'onehot', 'phon']: #TODO
         for stim_type in ['unigram']: #, 'zerovec-bigram', 'bigram']: #TODO
             input_type = stim_type + '_data'
             for exp in [1,2]:

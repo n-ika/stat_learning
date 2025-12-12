@@ -159,13 +159,13 @@ def train_model(model,
                 loss_track.append(float(loss))
                 loss.backward()
                 optimizer.step()
-                if batch_size_test==1:
-                    test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
-                                               epoch,stim_type,model_type,lr,exp,simulation_num))
+                # if batch_size_test==1: #FIXME uncomment
+                #     test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
+                #                                epoch,stim_type,model_type,lr,exp,simulation_num))
                 # if i > 2: #FIXME - remove
                 #     break
-            if batch_size_test>1: 
-                test_dfs.append(test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
+            # if batch_size_test>1: #FIXME uncomment
+            test_dfs.append(test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
                                            epoch,stim_type,model_type,lr,exp,simulation_num))
             test_df_epoch = pd.concat(test_dfs)             
             torch.save(model.state_dict(), model_dir+f'{out_name}_ep-{epoch}.pt')
