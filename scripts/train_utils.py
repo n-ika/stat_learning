@@ -1,8 +1,10 @@
+from pyexpat import model
 import torch
 from torch.utils.data import  DataLoader, TensorDataset
 import numpy as np
 import pandas as pd
 import os
+import re
 
 
 def load_syll_vec(root_exp,input_type,model_type,stim_type):
@@ -131,45 +133,63 @@ def train_model(model,
                 simulation_num,
                 model_dir,
                 out_dir,
-                out_name):
+                out_name,
+                unique_init):
     loss_track = []
-    test_df = test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
-                            0,stim_type,model_type,lr,exp,simulation_num)  
-    test_df.to_csv(out_dir+f'{out_name}_ep-0.csv')
-    if os.path.exists(f'{out_dir}/{out_name}_ep-{epochs}.csv'):
-        # Results already exist; skip training
-        print(f'Results for {out_name} already exist. Skipping training.')
-        return()        
+
+    # Check if any results already exist
+    files = [f for f in os.listdir(f"{out_dir}") if f.startswith(out_name) and f.endswith(".csv")]
+    latest_ep = 0
+    if files:
+        latest_res = max(files, key=lambda f: int(re.search(r"ep-(\d+)\.csv$", f).group(1))) \
+                     if files else None
+        latest_ep = int(re.search(r"ep-(\d+)\.csv$", latest_res).group(1))
+        if latest_ep > 0:
+            print(f'Results for {out_name} already exist. Starting from epoch {latest_ep}.')
+            ckpt = torch.load(f'{out_dir}/{out_name}_ep-{latest_ep}.pt', map_location=device)
+            model.load_state_dict(ckpt["model_state_dict"])
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
     else:
-        for epoch in range(1,epochs+1):
-            test_dfs = []
-            for i, in_batch_ in enumerate(in_loader):
-                model.train()
-                out_batch = out_loader_list[i][0].to(device)
-                # in_batch = in_batch_[0].reshape(1,1,-1).to(device) #FIXME
-                in_batch = in_batch_[0].to(device)
-                if model.__class__.__name__ == 'AE':
-                    codes, decoded = model(in_batch)
-                elif model.__class__.__name__ == 'RNNModel':
-                    # h0 = torch.zeros(in_batch.shape).to(device)
-                    decoded = model(in_batch)
-                    decoded = decoded.unsqueeze(1)
-                optimizer.zero_grad()
-                loss = loss_fun(decoded,out_batch)
-                loss_track.append(float(loss))
-                loss.backward()
-                optimizer.step()
-                # if batch_size_test==1: #FIXME uncomment
-                #     test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
-                #                                epoch,stim_type,model_type,lr,exp,simulation_num))
-                # if i > 2: #FIXME - remove
-                #     break
-            # if batch_size_test>1: #FIXME uncomment
+        print(f'Starting training for {out_name} from epoch 0.')
+        test_df = test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
+                            0,stim_type,model_type,lr,exp,simulation_num)  
+        test_df.to_csv(out_dir+f'{out_name}_ep-0.csv',compression='gzip',index=False)
+    
+    for epoch in range(latest_ep,epochs+1):
+        test_dfs = []
+        for i, in_batch_ in enumerate(in_loader):
+            model.train()
+            out_batch = out_loader_list[i][0].to(device)
+            # in_batch = in_batch_[0].reshape(1,1,-1).to(device) #FIXME
+            in_batch = in_batch_[0].to(device)
+            if model.__class__.__name__ == 'AE':
+                codes, decoded = model(in_batch)
+            elif model.__class__.__name__ == 'RNNModel':
+                # h0 = torch.zeros(in_batch.shape).to(device)
+                decoded = model(in_batch)
+                decoded = decoded.unsqueeze(1)
+            optimizer.zero_grad()
+            loss = loss_fun(decoded,out_batch)
+            loss_track.append(float(loss))
+            loss.backward()
+            optimizer.step()
+            if batch_size_test==1: #FIXME uncomment
+                test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
+                                            epoch,stim_type,model_type,lr,exp,simulation_num))
+            # if i > 2: #FIXME - remove
+            #     break
+        if batch_size_test>1: #FIXME uncomment
             test_dfs.append(test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
-                                           epoch,stim_type,model_type,lr,exp,simulation_num))
-            test_df_epoch = pd.concat(test_dfs)             
-            torch.save(model.state_dict(), model_dir+f'{out_name}_ep-{epoch}.pt')
-            test_df_epoch.to_csv(out_dir+f'{out_name}_ep-{epoch}.csv',compression='gzip',index=False)
-            pd.DataFrame(loss_track).to_csv(out_dir+f'loss_{out_name}.csv',compression='gzip',index=False)
-            print('done epoch & test #: ',epoch)  
+                                        epoch,stim_type,model_type,lr,exp,simulation_num))
+        test_df_epoch = pd.concat(test_dfs)
+        torch.save({"epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "loss": loss,
+                    }, 
+                    model_dir+f'{out_name}_ep-{epoch}.pt')             
+        # torch.save(model.state_dict(), model_dir+f'{out_name}_ep-{epoch}.pt')
+        test_df_epoch.to_csv(out_dir+f'{out_name}_ep-{epoch}.csv',compression='gzip',index=False)
+        pd.DataFrame(loss_track).to_csv(out_dir+f'loss_{out_name}.csv',compression='gzip',index=False)
+        print('done epoch & test #: ',epoch)  
     return()

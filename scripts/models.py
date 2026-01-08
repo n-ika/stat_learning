@@ -78,18 +78,27 @@ class RNNModel(nn.Module):
         self.output_size = output_size
         self.rnn = nn.RNN(self.input_size, self.hidden_size, batch_first=True, nonlinearity='relu')
         self.fc = nn.Linear(self.hidden_size, self.output_size)
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
+        # self.relu = nn.ReLU()
+        if loss_type == "bce":
+            self.activation = nn.Sigmoid()
+        elif loss_type == "mse":
+            self.activation = nn.ReLU()
+        else:
+            raise ValueError("Unsupported loss type. Use 'bce' or 'mse'.")
     def forward(self, x, h0=None):
-        if h0 != None:
+        if h0 is not None:
             out, _ = self.rnn(x,h0)
         else:
             out, _ = self.rnn(x)
         out = self.fc(out[:, -1, :])
-        if self.loss_type == 'bce':
-            out = self.sigmoid(out)
-        elif self.loss_type == 'mse':
-            out = torch.relu(out)
-        else:
-            raise ValueError("Unsupported loss type. Use 'bce' or 'mse'.")
+        out = self.activation(out)
+        # if self.loss_type == 'bce':
+        #     out = self.sigmoid(out)
+        # elif self.loss_type == 'mse':
+        #     # out = (out)
+        #     out = self.relu(out)
+        # else:
+        #     raise ValueError("Unsupported loss type. Use 'bce' or 'mse'.")
         return out
     

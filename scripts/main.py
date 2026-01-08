@@ -22,10 +22,13 @@ def main(args):
     epochs = args.epochs
     loss_type = args.loss_type
     lr = args.learning_rate
-    # sigmoid = args.sigmoid
-    num_simulations = args.num_simulations
+    unique_init = args.unique_init
+    simulation_num = args.simulation_num
     optional = args.optional
     # all_dfs = []
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('Using device:', device)
 
     if loss_type == 'mse':
         loss_fun = nn.MSELoss(reduction='mean')
@@ -40,8 +43,8 @@ def main(args):
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
-    for model_type in ['acoustic_vec_1']:#, 'acoustic_new_norm', 'onehot', 'phon']: #TODO
-        for stim_type in ['unigram']: #, 'zerovec-bigram', 'bigram']: #TODO
+    for model_type in ['phon','onehot']:#,'acoustic_vec_1', 'acoustic_new_norm', 'onehot', 'phon']: #TODO
+        for stim_type in ['unigram','bigram','zerovec-bigram']: #, 'zerovec-bigram', 'bigram']: #TODO
             input_type = stim_type + '_data'
             for exp in [1,2]:
                 if exp==1:
@@ -56,10 +59,6 @@ def main(args):
                 os.makedirs(res_dir,exist_ok=True)
                 model_dir = root_dir+f'/{input_type}/models/exp_{exp}/{model_type}/' #_{bottleneck_size}_{num_layer}_{hidden_size}
                 os.makedirs(model_dir,exist_ok=True)
-
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                print('Using device:', device)
-
                 syll_vec,in_loader,out_loader,test_in_loader,test_out_loader = load_all_data(root_exp,
                                                                                              model_type,
                                                                                              input_type,
@@ -68,61 +67,68 @@ def main(args):
                 test_out_list = list(test_out_loader)
                 out_loader_list = list(out_loader)
                 batch_sample = next(iter(in_loader))
+                
+                if model_arch == 'AE':
+                    if model_type.startswith('acoustic_vec'):
+                        out_size = [1,16] #TODO
+                    else:
+                        out_size = syll_vec['pi'].shape[1:]
+                    model = AE(input_size=batch_sample[0].shape[1:],
+                                output_size=out_size,
+                                hidden_size=hidden_size,
+                                num_layers=num_layer,
+                                bottleneck_size=bottleneck_size,
+                                sigmoid=sigmoid).to(device)
+                elif model_arch == 'RNN':
+                    if model_type.startswith('acoustic_vec'):
+                        out_size = 16 #TODO
+                    else:
+                        out_size = np.prod(syll_vec['pi'].shape[1:])
+                    model = RNNModel(input_size=batch_sample[0].shape[-1],
+                                        output_size=out_size,
+                                        hidden_size=hidden_size,                                         
+                                        loss_type=loss_type).to(device)
+                    # model = RNNModel(input_size=batch_sample[0].reshape(1,1,-1).shape[-1], #FIXME
+                    #                  output_size=np.prod(syll_vec['pi'].shape[1:]),
+                    #                  hidden_size=hidden_size,                                         
+                    #                  loss_type=loss_type).to(device)
+                optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+                print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
+                        f'number: {simulation_num}, train batch: {batch_size_train}, test batch: {batch_size_test}')   
+                out_name = (
+                        f"{model_type}_{bottleneck_size}_exp-{exp}_n-{simulation_num}_lr-{lr}_train-{int(batch_size_train)}_test"
+                        f"-{int(batch_size_test)}_{optimizer.__class__.__name__}"
+                        f"_{loss_type}_{sigmoid_type}"
+                    )
+                if unique_init==True and not os.path.exists(model_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt'):
+                    torch.save({"epoch": 0,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "loss": 0,
+                    }, 
+                    model_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt') 
 
-                for simulation_num in range(1,num_simulations+1):
-                    if model_arch == 'AE':
-                        if model_type.startswith('acoustic_vec'):
-                            out_size = [1,16] #TODO
-                        else:
-                            out_size = syll_vec['pi'].shape[1:]
-                        model = AE(input_size=batch_sample[0].shape[1:],
-                                   output_size=out_size,
-                                   hidden_size=hidden_size,
-                                   num_layers=num_layer,
-                                   bottleneck_size=bottleneck_size,
-                                   sigmoid=sigmoid).to(device)
-                    elif model_arch == 'RNN':
-                        model = RNNModel(input_size=batch_sample[0].shape[-1],
-                                         output_size=np.prod(syll_vec['pi'].shape[1:]),
-                                         hidden_size=hidden_size,                                         
-                                         loss_type=loss_type).to(device)
-                        # model = RNNModel(input_size=batch_sample[0].reshape(1,1,-1).shape[-1], #FIXME
-                        #                  output_size=np.prod(syll_vec['pi'].shape[1:]),
-                        #                  hidden_size=hidden_size,                                         
-                        #                  loss_type=loss_type).to(device)
-                    optimizer = torch.optim.Adam(model.parameters(),lr=lr)
-
-                    print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
-                          f'number: {simulation_num}, train batch: {batch_size_train}, test batch: {batch_size_test}')   
-                    out_name = (
-                            f"{model_type}_{bottleneck_size}_exp-{exp}_n-{simulation_num}_lr-{lr}_train-{int(batch_size_train)}_test"
-                            f"-{int(batch_size_test)}_{optimizer.__class__.__name__}"
-                            f"_{loss_type}_{sigmoid_type}"
-                        )
-                    # model_ckpt_name = model_dir+f'/ckpt_{out_name}'
-                    train_model(model,
-                                optimizer,
-                                loss_fun,
-                                device,
-                                epochs,
-                                in_loader,
-                                out_loader_list,
-                                test_in_loader,
-                                test_out_list,
-                                batch_size_test,
-                                stim_type,
-                                model_type,
-                                lr,
-                                exp,
-                                simulation_num,
-                                model_dir,
-                                res_dir,
-                                out_name)
-                    # all_dfs.append(test_df)
-                    print('done model #: ',simulation_num)
-                print('done experiment: ',exp)
-            print('done stimuli type:', stim_type)
-        print('done model type:', model_type)
+                train_model(model,
+                            optimizer,
+                            loss_fun,
+                            device,
+                            epochs,
+                            in_loader,
+                            out_loader_list,
+                            test_in_loader,
+                            test_out_list,
+                            batch_size_test,
+                            stim_type,
+                            model_type,
+                            lr,
+                            exp,
+                            simulation_num,
+                            model_dir,
+                            res_dir,
+                            out_name,
+                            unique_init)
+                # all_dfs.append(test_df)
+                print(f'done model #: {simulation_num},experiment: {exp}, stimulus type: {stim_type}, model type: {model_type}')
     # df_all = pd.concat(all_dfs)
     # df_all.to_csv(root_dir+f'/all_results_{model_arch}_{loss_type}_{sigmoid_type}.csv')
     print('done all!')
@@ -142,8 +148,8 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', '-e', type=int, default=16, help='Number of training epochs')
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--loss_type', '-lt', type=str, choices=['mse', 'bce'], default='mse', help='Type of loss function')
-    # parser.add_argument('--sigmoid', '-s', type=bool, default=False, help='Use sigmoid activation in the output layer')
-    parser.add_argument('--num_simulations', '-ns', type=int, default=70, help='Number of simulations to run')
+    parser.add_argument('--unique_init', '-ui', type=bool, default=False, help='Use the same initialization for each model run')
+    parser.add_argument('--simulation_num', '-sn', type=int, default=0, help='Number of simulation run')
     parser.add_argument('--optional', '-o', type=str, default='', 
                         help='Optional out folder descriptor (output folder is [model type]_[loss type][optional])')
     args = parser.parse_args()
