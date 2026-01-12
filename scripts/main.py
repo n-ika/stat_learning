@@ -25,6 +25,8 @@ def main(args):
     unique_init = args.unique_init
     simulation_num = args.simulation_num
     optional = args.optional
+    encoding_types = args.encoding_types
+    stim_structure = args.stim_structure
     # all_dfs = []
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -43,8 +45,8 @@ def main(args):
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
-    for model_type in ['phon','onehot']:#,'acoustic_vec_1', 'acoustic_new_norm', 'onehot', 'phon']: #TODO
-        for stim_type in ['unigram','bigram','zerovec-bigram']: #, 'zerovec-bigram', 'bigram']: #TODO
+    for model_type in encoding_types: 
+        for stim_type in stim_structure: 
             input_type = stim_type + '_data'
             for exp in [1,2]:
                 if exp==1:
@@ -100,13 +102,24 @@ def main(args):
                         f"-{int(batch_size_test)}_{optimizer.__class__.__name__}"
                         f"_{loss_type}_{sigmoid_type}"
                     )
-                if unique_init==True and not os.path.exists(model_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt'):
-                    torch.save({"epoch": 0,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": 0,
-                    }, 
-                    model_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt') 
+                # If using unique initialization, load or save initial model state
+                if unique_init==True:
+                    if os.path.exists(root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt'):
+                        print('Loading initial model state...')
+                        ckpt_init = torch.load(root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt', 
+                                               map_location=device,
+                                               weights_only=False)
+                        model.load_state_dict(ckpt_init["model_state_dict"])
+                        optimizer.load_state_dict(ckpt_init["optimizer_state_dict"])
+                    else:
+                        print('Saving initial model state...')
+                        torch.manual_seed(842)  # Ensure the same initialization
+                        torch.save({"epoch": 0,
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "loss": 0,
+                        }, 
+                        root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt')     
 
                 train_model(model,
                             optimizer,
@@ -148,10 +161,14 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', '-e', type=int, default=16, help='Number of training epochs')
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--loss_type', '-lt', type=str, choices=['mse', 'bce'], default='mse', help='Type of loss function')
-    parser.add_argument('--unique_init', '-ui', type=bool, default=False, help='Use the same initialization for each model run')
+    parser.add_argument('--unique_init', '-ui', action="store_true", help='Use the same initialization for each model run')
     parser.add_argument('--simulation_num', '-sn', type=int, default=0, help='Number of simulation run')
     parser.add_argument('--optional', '-o', type=str, default='', 
                         help='Optional out folder descriptor (output folder is [model type]_[loss type][optional])')
+    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_new_norm'], 
+                        help='List of encoding types to use')
+    parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'zerovec-bigram', 'bigram'], 
+                        help='List of stimulus structure to use')
     args = parser.parse_args()
     print(args)
     main(args)

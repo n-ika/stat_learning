@@ -139,22 +139,26 @@ def train_model(model,
 
     # Check if any results already exist
     files = [f for f in os.listdir(f"{out_dir}") if f.startswith(out_name) and f.endswith(".csv")]
-    latest_ep = 0
     if files:
         latest_res = max(files, key=lambda f: int(re.search(r"ep-(\d+)\.csv$", f).group(1))) \
                      if files else None
         latest_ep = int(re.search(r"ep-(\d+)\.csv$", latest_res).group(1))
-        if latest_ep > 0:
-            print(f'Results for {out_name} already exist. Starting from epoch {latest_ep}.')
-            ckpt = torch.load(f'{out_dir}/{out_name}_ep-{latest_ep}.pt', map_location=device)
+        if latest_ep > 0 and latest_ep < epochs:
+            print(f'Results for #{simulation_num} already exist. Starting from epoch {latest_ep}.')
+            ckpt = torch.load(f'{model_dir}/{out_name}_ep-{latest_ep}.pt', map_location=device)
             model.load_state_dict(ckpt["model_state_dict"])
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        else:
+            print(f'All epochs for #{simulation_num} already completed. Skipping training.')
+            return()
+    # Else, start training from scratch
     else:
-        print(f'Starting training for {out_name} from epoch 0.')
+        print(f'Starting training for #{simulation_num} from scratch.')
         test_df = test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
                             0,stim_type,model_type,lr,exp,simulation_num)  
         test_df.to_csv(out_dir+f'{out_name}_ep-0.csv',compression='gzip',index=False)
-    
+        latest_ep = 1
+    # Start training loop
     for epoch in range(latest_ep,epochs+1):
         test_dfs = []
         for i, in_batch_ in enumerate(in_loader):
@@ -191,5 +195,5 @@ def train_model(model,
         # torch.save(model.state_dict(), model_dir+f'{out_name}_ep-{epoch}.pt')
         test_df_epoch.to_csv(out_dir+f'{out_name}_ep-{epoch}.csv',compression='gzip',index=False)
         pd.DataFrame(loss_track).to_csv(out_dir+f'loss_{out_name}.csv',compression='gzip',index=False)
-        print('done epoch & test #: ',epoch)  
+        print(f'done epoch & test #: {epoch} for #{simulation_num}')  
     return()
