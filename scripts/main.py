@@ -72,7 +72,7 @@ def main(args):
                 
                 if model_arch == 'AE':
                     if model_type.startswith('acoustic_vec'):
-                        out_size = [1,16] #TODO
+                        out_size = [1,int(model_type.split('_')[-1])] #TODO
                     else:
                         out_size = syll_vec['pi'].shape[1:]
                     model = AE(input_size=batch_sample[0].shape[1:],
@@ -82,18 +82,16 @@ def main(args):
                                 bottleneck_size=bottleneck_size,
                                 sigmoid=sigmoid).to(device)
                 elif model_arch == 'RNN':
+                    if unique_init == True:
+                        torch.manual_seed(842)  # Ensure the same initialization for each model run
                     if model_type.startswith('acoustic_vec'):
-                        out_size = 16 #TODO
+                        out_size = int(model_type.split('_')[-1])
                     else:
                         out_size = np.prod(syll_vec['pi'].shape[1:])
                     model = RNNModel(input_size=batch_sample[0].shape[-1],
                                         output_size=out_size,
                                         hidden_size=hidden_size,                                         
                                         loss_type=loss_type).to(device)
-                    # model = RNNModel(input_size=batch_sample[0].reshape(1,1,-1).shape[-1], #FIXME
-                    #                  output_size=np.prod(syll_vec['pi'].shape[1:]),
-                    #                  hidden_size=hidden_size,                                         
-                    #                  loss_type=loss_type).to(device)
                 optimizer = torch.optim.Adam(model.parameters(),lr=lr)
                 print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
                         f'number: {simulation_num}, train batch: {batch_size_train}, test batch: {batch_size_test}')   
@@ -105,21 +103,22 @@ def main(args):
                 # If using unique initialization, load or save initial model state
                 if unique_init==True:
                     if os.path.exists(root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt'):
-                        print('Loading initial model state...')
+                        print('LOADING initial model state...')
                         ckpt_init = torch.load(root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt', 
                                                map_location=device,
                                                weights_only=False)
                         model.load_state_dict(ckpt_init["model_state_dict"])
                         optimizer.load_state_dict(ckpt_init["optimizer_state_dict"])
                     else:
-                        print('Saving initial model state...')
-                        torch.manual_seed(842)  # Ensure the same initialization
+                        print('SAVING initial model state...')
                         torch.save({"epoch": 0,
                         "model_state_dict": model.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),
                         "loss": 0,
                         }, 
-                        root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt')     
+                        root_dir+f'/init_{loss_type}_{stim_type}_{model_type}.pt')    
+                else:
+                    print('New initialization ...') 
 
                 train_model(model,
                             optimizer,
@@ -149,9 +148,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--in_root', '-ir', type=str, help='Root directory for data', 
-                        default='/projects/jurovlab/stat_learning/')
+                        default='/projects/jurovlab/stat_learning/data/')
     parser.add_argument('--out_root', '-or', type=str, help='Root directory for results', 
-                        default='/projects/jurovlab/stat_learning/')
+                        default='/projects/jurovlab/stat_learning/interim/')
     parser.add_argument('--model_arch', '-ma', type=str, choices=['AE', 'RNN'], default='AE', help='Model architectures to run')
     parser.add_argument('--batch_size_train', '-btr', type=int, default=1, help='Training batch size')
     parser.add_argument('--batch_size_test', '-bte', type=int, default=1, help='Testing batch size')
@@ -165,7 +164,7 @@ if __name__ == "__main__":
     parser.add_argument('--simulation_num', '-sn', type=int, default=0, help='Number of simulation run')
     parser.add_argument('--optional', '-o', type=str, default='', 
                         help='Optional out folder descriptor (output folder is [model type]_[loss type][optional])')
-    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_new_norm'], 
+    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_39_norm'], 
                         help='List of encoding types to use')
     parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'zerovec-bigram', 'bigram'], 
                         help='List of stimulus structure to use')

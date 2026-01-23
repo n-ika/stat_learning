@@ -139,7 +139,7 @@ def train_model(model,
 
     # Check if any results already exist
     files = [f for f in os.listdir(f"{out_dir}") if f.startswith(out_name) and f.endswith(".csv")]
-    if files:
+    if files and len(files) > 1:
         latest_res = max(files, key=lambda f: int(re.search(r"ep-(\d+)\.csv$", f).group(1))) \
                      if files else None
         latest_ep = int(re.search(r"ep-(\d+)\.csv$", latest_res).group(1))
@@ -148,9 +148,11 @@ def train_model(model,
             ckpt = torch.load(f'{model_dir}/{out_name}_ep-{latest_ep}.pt', map_location=device)
             model.load_state_dict(ckpt["model_state_dict"])
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        else:
+        elif latest_ep == epochs:
             print(f'All epochs for #{simulation_num} already completed. Skipping training.')
             return()
+        else:
+            print("ERROR: Did not think about this case, TODO")
     # Else, start training from scratch
     else:
         print(f'Starting training for #{simulation_num} from scratch.')
@@ -177,12 +179,12 @@ def train_model(model,
             loss_track.append(float(loss))
             loss.backward()
             optimizer.step()
-            if batch_size_test==1: #FIXME uncomment
+            if batch_size_test==1: #FIXME 
                 test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
                                             epoch,stim_type,model_type,lr,exp,simulation_num))
             # if i > 2: #FIXME - remove
             #     break
-        if batch_size_test>1: #FIXME uncomment
+        if batch_size_test>1: #FIXME 
             test_dfs.append(test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
                                         epoch,stim_type,model_type,lr,exp,simulation_num))
         test_df_epoch = pd.concat(test_dfs)
