@@ -1,20 +1,17 @@
+from collections import defaultdict
 import numpy as np
 from statsmodels.stats.descriptivestats import sign_test
 from scipy.stats import binom
 import pandas as pd
 import matplotlib.pyplot as plt
-# import seaborn as sns
 import argparse
 import os
 
-# main code
-
-id_cols = ['model_type','exp',
-            'condition','epochs',
+id_cols = ['exp',
+            'condition',
             # 'in_label','out_label',
-            'batch_id',
             'btc_ep',
-            'stim_type']
+            ]
 
 def get_stat_point(df,cols):
     df_stat = df.groupby(cols).agg(median=("loss", "median"),
@@ -42,7 +39,7 @@ def interval_coded_BY_corrected_sign_test(data, alpha=0.01):
     #   - an interval of length 1, for example at position i, is coded as [i, i]
     data = data.groupby(['model_num', 'condition', 'btc_ep'], as_index=False)['loss'].mean()
     data = data.pivot(columns='condition', index=['model_num', 'btc_ep'], values=['loss'])
-    data['loss_difference'] = data[('loss', 'Part-Word')]-data[('loss', 'Word')]
+    data['loss_difference'] = data[('loss', 0)]-data[('loss', 1)]
     data = data.reset_index()
     p_values = data.groupby('btc_ep', as_index=False)['loss_difference'].apply(get_p_value)
     p_values = p_values.rename(columns={'loss_difference': 'p-value'})
@@ -90,14 +87,14 @@ def interval_coding(kept):
     return intervals_with_significant_differences_in_median
 
 
-def plot_stats(df_exp, exp, stim_structure, type_loss, intervals_with_significant_differences_in_median, out_root, logy):
+def plot_stats(df_exp, exp, stim_structure, model_type, type_loss, intervals_with_significant_differences_in_median, out_root, logy):
     fig, axes = plt.subplots(figsize=(15, 5), sharey=False)
-    group_cols = ['model_type', 'condition']
+    group_cols = ['condition']
     for keys, sub in df_exp.groupby(group_cols):
         sub = sub.sort_values("btc_ep")
         # readable label
-        model_type, condition = keys
-        label = f"{condition.capitalize()}"
+        condition = keys[0]
+        label = f"{'Word' if condition == 1 else 'Part Word'}"
         axes.plot(sub["btc_ep"], sub["median"], label=label)
         
         # band between Q1 and Q3 if present
@@ -147,52 +144,80 @@ def load_and_process_data(args):
     os.makedirs(out_root, exist_ok=True)
     model_architecture = args.architecture
     type_loss = args.loss_type
-    encoding_types = args.encoding_types 
-    stim_structures = args.stim_structure
+    encoding_type = args.encoding_type
+    stim_structure = args.stim_structure
     logy = args.logy
+    exp_n = args.exp_n
+    base_dir =  in_root + f'/{model_architecture}_results_{type_loss}/{stim_structure}_data/out/'
     
-    for encoding_type in encoding_types:
-        for stim_structure in stim_structures:
-            for exp in [1, 2]:
-                print(f'Analyzing: {model_architecture} - {encoding_type} - {stim_structure}, experiment: {exp}')
-                df_full = pd.read_csv(in_root+f'{model_architecture}_{stim_structure}_{type_loss}.csv',compression='gzip')
-                # loading and formatting data
-                print('loading data')
-                del df_full['Unnamed: 0']
-                df_full = df_full.reset_index()
-                del df_full['index']
-                if df_full.batch_id.unique().shape[0]>500:
-                    df_full['btc_ep'] = [0 if epoch==0 else (epoch-1)*809+batch+1 for batch, epoch in zip(df_full['batch_id'], df_full['epochs'])]
-                else:
-                    df_full['btc_ep'] = df_full['epochs']
+    groups = {}
+    print('loading paths of original dfs')
+    for root, dirs, fnames in os.walk(base_dir):
+        for fname in fnames:
+            if not fname.endswith('.csv'):
+                continue
+            if 'exp-' not in fname or 'ep-' not in fname:
+                continue
+            if fname.startswith(encoding_type):
+                # cheap way to get exp and ep substrings (you can parse numbers if needed)
+                exp_part = next((s for s in fname.split('_') if s.startswith('exp-')), None)
+                ep_part  = next((s for s in fname.split('_') if s.startswith('ep-')), None)
 
-                # selecting data for one xp and one model type
-                test_data = df_full[(df_full['model_type'] == encoding_type) & (df_full['exp'] == exp)]
-                
-                # running statistical tests
-                print('running tests')
-                intervals_with_significant_differences_in_median = interval_coded_BY_corrected_sign_test(test_data)
-                df_exp = get_stat_point(test_data,id_cols)
-                print('plotting')
-                plot_stats(df_exp, exp, stim_structure, type_loss, intervals_with_significant_differences_in_median, out_root, logy)
+                if exp_part and ep_part:
+                    key = (exp_part, ep_part)   # e.g. ('exp-2', 'ep-7')
+                    path = os.path.join(root, fname)
+                    groups.setdefault(key, []).append(path)
+    
+    print('loading original dfs')
+    fin = []
+    intervals = []
+    i = 0
+    for (exp, ep), paths in groups.items():
+        if int(exp.split('-')[-1]) == exp_n:
+            i += 1
+            dfs = []
+            print(f"Group {exp}, {ep}: {len(paths)} files")
+            for path in paths:
+                df = pd.read_csv(path, compression='gzip')
+                df.drop(columns=['lr','in_label','out_label','stim_type','model_type'], inplace=True) 
+                dfs.append(df)
+            combined_df = pd.concat(dfs, ignore_index=True)
+            combined_df['btc_ep'] = [0 if epoch==0 else (epoch-1)*809+batch+1 for batch, epoch in zip(combined_df['batch_id'], combined_df['epochs'])]
+            intervals_with_significant_differences_in_median = interval_coded_BY_corrected_sign_test(combined_df)
+            df_exp = get_stat_point(combined_df,id_cols)
+            fin.append(df_exp)
+            intervals.append(intervals_with_significant_differences_in_median)
+
+
+    print('concatenating final stat df')
+    dffull = pd.concat(fin, ignore_index=True).reset_index(drop=True)
+    dffull['stim_type'] = stim_structure
+    non_empty = [arr for arr in intervals if arr.size > 0]
+    stacked = np.vstack(non_empty)
+    sorted_arr = stacked[np.argsort(stacked[:, 0])]
+    print('plotting')
+    plot_stats(dffull, exp, stim_structure, encoding_type, type_loss, sorted_arr, out_root, logy)
+    print('done')
 
 
 def main():
     parser = argparse.ArgumentParser(description='Statistical analysis of model results')
     parser.add_argument('--in_root', '-ir', type=str, help='Root directory for input data', 
-                        default='/projects/jurovlab/stat_learning/results/')
+                        default='/projects/jurovlab/stat_learning/')
     parser.add_argument('--out_root', '-or', type=str, help='Root directory for output data', 
                         default='/projects/jurovlab/stat_learning/results/figures/')                    
     parser.add_argument('--architecture', '-a', type=str, required=True, help='Type of model to analyze (e.g. rnn, ae)')
-    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_new_norm'], 
-                        help='List of encoding types to use')
-    parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'zerovec-bigram', 'bigram'], 
-                        help='List of stimulus structure to use')
+    parser.add_argument('--encoding_type', '-et', type=str, default='acoustic_vec_1', 
+                        help='Encoding types to use, i.e. unigram, bigram, zerobigram')
+    parser.add_argument('--stim_structure', '-st', type=str, default='unigram', 
+                        help='Stimulus structure to use, i.e. unigram')
     parser.add_argument('--loss_type', '-lt', type=str, required=True, help='Type of loss function used (e.g. bce, mse, bce_batch9_ui)')
     parser.add_argument('--logy', action='store_true', help='Use logarithmic scale for y axis')
+    parser.add_argument('--exp_n', '-en', type=int, required=True, default=1, help='Experiment number, 1 or 2')
     args = parser.parse_args()
     print('Arguments:', args)
     load_and_process_data(args)
 
 if __name__ == '__main__':
     main()
+
