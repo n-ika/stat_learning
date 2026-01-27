@@ -9,10 +9,12 @@ import os
 
 # main code
 
-id_cols = ['model_type','exp',
-            'condition','epochs',
+id_cols = ['model_type',
+           'exp',
+            'condition',
+            # 'epochs',
             # 'in_label','out_label',
-            'batch_id',
+            # 'batch_id',
             'btc_ep',
             'stim_type']
 
@@ -164,8 +166,7 @@ def load_and_process_data(args):
                 if df_full.batch_id.unique().shape[0]>500:
                     df_full['btc_ep'] = [0 if epoch==0 else (epoch-1)*809+batch+1 for batch, epoch in zip(df_full['batch_id'], df_full['epochs'])]
                 else:
-                    df_full['btc_ep'] = df_full['epochs']
-
+                    df_full['btc_ep'] = [0 if epoch==0 else (epoch-1)*59+batch+1 for batch, epoch in zip(df_full['batch_id'], df_full['epochs'])]
                 # selecting data for one xp and one model type
                 test_data = df_full[(df_full['model_type'] == encoding_type) & (df_full['exp'] == exp)]
                 

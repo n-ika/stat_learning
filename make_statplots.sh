@@ -27,7 +27,7 @@ conda activate statenv
 
 ### Run your actual program
 
-srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -et phon -st unigram -lt=mse -ir=/projects/jurovlab/stat_learning/results_old/
+srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -et onehot -st unigram -lt=mse -ir=/projects/jurovlab/stat_learning/results/
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -et acoustic_new_norm -st unigram -lt=mse -ir=/projects/jurovlab/stat_learning/results_old/ --logy
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=mse_acoustic_vec 
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=bce_acoustic_vec 

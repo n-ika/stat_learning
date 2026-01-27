@@ -171,10 +171,8 @@ def load_and_process_data(args):
     print('loading original dfs')
     fin = []
     intervals = []
-    i = 0
     for (exp, ep), paths in groups.items():
         if int(exp.split('-')[-1]) == exp_n:
-            i += 1
             dfs = []
             print(f"Group {exp}, {ep}: {len(paths)} files")
             for path in paths:
@@ -195,6 +193,8 @@ def load_and_process_data(args):
     non_empty = [arr for arr in intervals if arr.size > 0]
     stacked = np.vstack(non_empty)
     sorted_arr = stacked[np.argsort(stacked[:, 0])]
+    dffull.to_csv(out_root+f'data/summary_{model_architecture}_{stim_structure}_{type_loss}_exp{exp_n}.csv', index=False)
+    np.save(out_root+f'data/intervals_{model_architecture}_{stim_structure}_{type_loss}_exp{exp_n}.npy', sorted_arr)
     print('plotting')
     plot_stats(dffull, exp, stim_structure, encoding_type, type_loss, sorted_arr, out_root, logy)
     print('done')

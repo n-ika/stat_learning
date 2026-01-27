@@ -32,9 +32,12 @@ conda activate statenv
 #rnn_mse
 # srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=mse -sn=${SLURM_ARRAY_TASK_ID} -et acoustic_vec_39 -st=unigram #mse_vec
 # bce_vec
-srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=bce -sn=${SLURM_ARRAY_TASK_ID} -et acoustic_vec_39 -st=unigram
+# srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=bce -sn=${SLURM_ARRAY_TASK_ID} -et acoustic_vec_39 -st=unigram
  #qi_c
 # srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=bce -btr=9 -sn=${SLURM_ARRAY_TASK_ID} -o='_batch9'
 #qi_ab
 # srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=bce -btr=9 -sn=${SLURM_ARRAY_TASK_ID} -ui -et=phon -st=zerovec-bigram -o='_batch9_ui'
+
+srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=mse -btr=1 -sn=${SLURM_ARRAY_TASK_ID} 
+
 conda deactivate

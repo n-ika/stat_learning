@@ -11,9 +11,9 @@ from data_utils import *
 def main(args):
     root = args.root
     out_dir = args.out_dir
-    n_mels = args.n_mels
+    n_freqchannels = args.n_freqchannels
     for stim_type in ['unigram','bigram','zerovec-bigram']:
-        for model_type in ['onehot', 'phon', f'acoustic_{n_mels}_norm']: 
+        for model_type in ['onehot', 'phon', f'acoustic_{n_freqchannels}_norm']: 
             for exp in [1,2]:
                 if exp==1:
                     exp_dir = 'simulation_one/'
@@ -29,7 +29,7 @@ def main(args):
                 out_dir = root + f'/data/' + exp_dir + f"{stim_type}_data/"
                 os.makedirs(out_dir, exist_ok=True)
 
-                syll_vec = get_syll_vec(model_type,root_raw_stims,exp,n_mels)
+                syll_vec = get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels)
                 if model_type.endswith('norm'):
                     all_values = np.concatenate([v.flatten() for v in syll_vec.values()])
                     tr_min = np.min(all_values)
@@ -48,30 +48,30 @@ def main(args):
                 save_data('test_out',test_out,test_labels_out, test_conditions, out_dir, model_type)
                 if model_type.startswith('acoustic') and stim_type=='unigram':
                     for N in [1]:
-                        syll_vec = {k:s.reshape(s.shape[0], s.shape[1], n_mels, -1) for k,s in syll_vec.items()}
-                        torch.save(syll_vec, out_dir+f'syll_vec_acoustic_vec_{n_mels}_{stim_type}.pt')
-                        train_in = train_in.reshape(-1, N, n_mels)
+                        syll_vec = {k:s.reshape(s.shape[0], s.shape[1], n_freqchannels, -1) for k,s in syll_vec.items()}
+                        torch.save(syll_vec, out_dir+f'syll_vec_acoustic_vec_{n_freqchannels}_{stim_type}.pt')
+                        train_in = train_in.reshape(-1, N, n_freqchannels)
                         train_labels_in = np.repeat(train_labels_in, 28//N).tolist()
-                        train_out = train_out.reshape(-1, N, n_mels)
+                        train_out = train_out.reshape(-1, N, n_freqchannels)
                         train_labels_out = np.repeat(train_labels_out, 28//N).tolist()
-                        test_in = test_in.reshape(-1, N, n_mels)
+                        test_in = test_in.reshape(-1, N, n_freqchannels)
                         test_labels_in = np.repeat(test_labels_in, 28//N).tolist()
-                        test_out = test_out.reshape(-1, N, n_mels)
+                        test_out = test_out.reshape(-1, N, n_freqchannels)
                         test_labels_out = np.repeat(test_labels_out, 28//N).tolist()
                         train_conditions = np.repeat(train_conditions, 28//N).tolist()
                         test_conditions = np.repeat(test_conditions, 28//N).tolist()
-                        save_data('train_in',train_in,train_labels_in,train_conditions,out_dir,f'acoustic_vec_{n_mels}')
-                        save_data('train_out',train_out,train_labels_out,train_conditions,out_dir,f'acoustic_vec_{n_mels}')
-                        save_data('test_in',test_in,test_labels_in,test_conditions,out_dir,f'acoustic_vec_{n_mels}')
-                        save_data('test_out',test_out,test_labels_out, test_conditions, out_dir, f'acoustic_vec_{n_mels}')
-                        print(f'{stim_type} data, acoustic_vec_{n_mels} model, exp: {exp}, train in shape: {train_in.shape}, train out shape: {train_out.shape}, test in shape: {test_in.shape}, test out shape: {test_out.shape}')
+                        save_data('train_in',train_in,train_labels_in,train_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
+                        save_data('train_out',train_out,train_labels_out,train_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
+                        save_data('test_in',test_in,test_labels_in,test_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
+                        save_data('test_out',test_out,test_labels_out, test_conditions, out_dir, f'acoustic_vec_{n_freqchannels}')
+                        print(f'{stim_type} data, acoustic_vec_{n_freqchannels} model, exp: {exp}, train in shape: {train_in.shape}, train out shape: {train_out.shape}, test in shape: {test_in.shape}, test out shape: {test_out.shape}')
     print('data saved!')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=str, default='/projects/jurovlab/stat_learning/')
     parser.add_argument('--out_dir', '-od', type=str, default='data/')
-    parser.add_argument('--n_mels', type=int, default=39)
+    parser.add_argument('--n_freqchannels', type=int, default=16)
     args = parser.parse_args()
     main(args)
    

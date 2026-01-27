@@ -31,6 +31,8 @@ def concatenate_dfs(root, filter_type, NUM_PROCS, do_stats):
         if f.endswith(".csv")
         and not f.startswith("loss")
         and (filter_type is None or filter_type in f)
+        # and (filter_type not in f) #FIXME TODO if want everything BUT filter
+
     ]
     with Pool(processes=NUM_PROCS) as pool:
         dfs = pool.map(partial(process_file, root, do_stats=do_stats), files)
@@ -47,7 +49,8 @@ def process_dfs(args):
     if filter_type is None:
         additional = ''
     else:
-        additional = f'_{filter_type}'
+        additional = f'_{filter_type}' #TODO
+        # additional = ''
 
     os.makedirs(root_out, exist_ok=True)
     # Determine number of available CPU cores
@@ -72,7 +75,7 @@ def main():
     parser.add_argument('--out_root', '-or', type=str, help='Root directory for output data', 
                         default='/projects/jurovlab/stat_learning/results/')
     parser.add_argument('--in_root', '-ir', type=str, help='Root directory for input data', 
-                        default='/projects/jurovlab/stat_learning/') # interim/
+                        default='/projects/jurovlab/stat_learning/interim/') 
     parser.add_argument('--do_stats', '-ds', action='store_true', help='Whether to compute statistics or not')
     args = parser.parse_args()
     print(args)

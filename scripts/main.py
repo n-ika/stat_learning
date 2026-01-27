@@ -89,9 +89,9 @@ def main(args):
                     else:
                         out_size = np.prod(syll_vec['pi'].shape[1:])
                     model = RNNModel(input_size=batch_sample[0].shape[-1],
-                                        output_size=out_size,
-                                        hidden_size=hidden_size,                                         
-                                        loss_type=loss_type).to(device)
+                                    output_size=out_size,
+                                    hidden_size=hidden_size,                                         
+                                    loss_type=loss_type).to(device)
                 optimizer = torch.optim.Adam(model.parameters(),lr=lr)
                 print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
                         f'number: {simulation_num}, train batch: {batch_size_train}, test batch: {batch_size_test}')   
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     parser.add_argument('--in_root', '-ir', type=str, help='Root directory for data', 
                         default='/projects/jurovlab/stat_learning/data/')
     parser.add_argument('--out_root', '-or', type=str, help='Root directory for results', 
-                        default='/projects/jurovlab/stat_learning/interim/')
+                        default='/projects/jurovlab/stat_learning/interim2/')
     parser.add_argument('--model_arch', '-ma', type=str, choices=['AE', 'RNN'], default='AE', help='Model architectures to run')
     parser.add_argument('--batch_size_train', '-btr', type=int, default=1, help='Training batch size')
     parser.add_argument('--batch_size_test', '-bte', type=int, default=1, help='Testing batch size')

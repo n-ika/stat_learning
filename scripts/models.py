@@ -93,12 +93,5 @@ class RNNModel(nn.Module):
             out, _ = self.rnn(x)
         out = self.fc(out[:, -1, :])
         out = self.activation(out)
-        # if self.loss_type == 'bce':
-        #     out = self.sigmoid(out)
-        # elif self.loss_type == 'mse':
-        #     # out = (out)
-        #     out = self.relu(out)
-        # else:
-        #     raise ValueError("Unsupported loss type. Use 'bce' or 'mse'.")
         return out
     

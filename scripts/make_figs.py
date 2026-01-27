@@ -78,7 +78,7 @@ def get_stat_point(df,cols=id_cols):
     return df_stat
 
 
-for stim_type in ['unigram','bigram','zerobigram']:
+for stim_type in ['unigram']: #,'bigram','zerobigram']:
     df = pd.read_csv(root_in+f'{model_type}_{stim_type}_{loss_type}.csv',compression='gzip')
     df['btc_ep']=df['batch_id']+(df['epochs'])*809
     df.loc[df['epochs']>=1,'btc_ep'] -= 808

@@ -8,7 +8,7 @@ def normalize_data(data,min_data,max_data):
     data_normed = (data - min_data) / (max_data - min_data + 1e-6)
     return(data_normed)
 
-def get_syll_vec(model_type,root_raw_stims,exp,n_mels):
+def get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels):
     if exp==1:
         sylls = ['pa','bi','ku','ti','bu','do','go','la','tu','da','ro','pi']
     elif exp==2:
@@ -18,7 +18,7 @@ def get_syll_vec(model_type,root_raw_stims,exp,n_mels):
     elif model_type=='phon':
         syll_vec=get_phon_vecs(sylls)
     elif model_type.startswith('acoustic'):
-        syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_mels)
+        syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_freqchannels)
     return(syll_vec)
 
 def get_onehot_vecs(sylls):
@@ -46,14 +46,15 @@ def get_phon_vecs(sylls,stims_file=None):
     syll_vec['null'] = np.zeros([1,1,encodings[itm[0]].shape[-1]*2])
     return(syll_vec)
 
-def get_acoustic_vecs(root_stims,sylls_ex,n_mels):
-    n_fft=512
-    tgt_sr = 16000
+def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels):
+    # tgt_sr = 16000
+    n_fft=256
     syll_vec = {}
     for syll in sylls_ex:
         y, sr = librosa.load(root_stims+syll+'.wav', sr=None)
-        audio = librosa.resample(y, orig_sr=sr, target_sr=tgt_sr)
-        mel_specgram = librosa.feature.melspectrogram(y=audio, sr=tgt_sr, n_fft=n_fft, hop_length=n_fft//4, n_mels=n_mels, window='hann')
+        print('sampling rate ', sr)
+        # audio = librosa.resample(y, orig_sr=sr, target_sr=tgt_sr)
+        mel_specgram = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=n_fft//4, n_mels=n_freqchannels, window='hann')
         # TODO: log the mel spectrogram
         syll_vec[syll] = np.reshape(mel_specgram[np.newaxis, :], (1, 1, -1))
     syll_vec['null'] = np.reshape(np.zeros(mel_specgram[np.newaxis, :].shape), (1, 1, -1))
