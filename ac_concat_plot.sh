@@ -3,15 +3,15 @@
 #SBATCH --export=ROOT_PATH=/projects/jurovlab/stat_learning ### Export environment variables to job
 
 #SBATCH --account=jurovlab   ### Account used for job submission
-#SBATCH --partition=memorylong     #jurov     #jurov ###gpu
-#SBATCH --job-name=a_mse1    ### Job Name
+#SBATCH --partition=jurov     #memorylong     #jurov ###gpu
+#SBATCH --job-name=a_mse2    ### Job Name
 #SBATCH --time=1-00:00:00     ### Wall clock time limit in Days-HH:MM:SS
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
 #SBATCH --output=tmp/%x_%A.out      # %A: job ID, %a: array index; File in which to store job output
 #SBATCH --error=tmp/%x_%A.err                ### File in which to store job error messages
-#SBATCH --mem=128G                       ### Total Memory for job in MB -- can do K/M/G/T for KB/MB/GB/TB
-#SBATCH --cpus-per-task=2                ### Number of cpus/cores to be launched per Task
+#SBATCH --mem=512G                       ### Total Memory for job in MB -- can do K/M/G/T for KB/MB/GB/TB
+#SBATCH --cpus-per-task=4                ### Number of cpus/cores to be launched per Task
 
 ### SLURM can even email you when jobs reach certain states:
 #SBATCH --mail-type=BEGIN,END,FAIL       ### accepted types are NONE,BEGIN,END,FAIL,REQUEUE,ALL (does all)
@@ -27,8 +27,8 @@ conda activate statenv
 
 ### Run your actual program
 
-srun -u $(which python) $ROOT_PATH/scripts/ac_make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=mse -en=1 --logy
-# srun -u $(which python) $ROOT_PATH/scripts/ac_make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=bce -en=2 
-# srun -u $(which python) $ROOT_PATH/scripts/ac_make_statplots.py -a=rnn -et onehot -st unigram -lt=bce -en=2 -ir=/projects/jurovlab/stat_learning/interim/
+srun -u $(which python) $ROOT_PATH/scripts/ac_concat_plot.py -a=rnn -et acoustic_vec_16 \
+         -st unigram --type_loss=mse --exp_n=2 --logy --out_dir=results/results_512vec \
+         --in_dir=interim/interim_512vec
 
 conda deactivate

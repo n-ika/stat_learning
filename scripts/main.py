@@ -1,3 +1,4 @@
+import random
 import torch
 import torch.nn as nn
 from torch.utils.data import  DataLoader, TensorDataset
@@ -11,11 +12,13 @@ from models import *
 import argparse
 
 def main(args):
-    in_root = args.in_root
-    out_root = args.out_root
+    root = args.root
+    in_root = root + args.in_dir
+    out_root = root + args.out_dir + args.out_subdir
     model_arch = args.model_arch
     batch_size_train = args.batch_size_train
     batch_size_test = args.batch_size_test
+    test_frequency = args.test_frequency
     bottleneck_size = args.bottleneck_size
     hidden_size = args.hidden_size
     num_layer = args.num_layer
@@ -35,13 +38,14 @@ def main(args):
     if loss_type == 'mse':
         loss_fun = nn.MSELoss(reduction='mean')
         sigmoid_type = 'none'
-        sigmoid = False
-        print("Using MSE loss: last layer should not be sigmoid")
+        sigmoid = False #TODO
+        # print("Using MSE loss: last layer should not be sigmoid")
+        print("Setting last layer to sigmoid activation") #TODO
     elif loss_type == 'bce':
         loss_fun = nn.BCELoss()
         sigmoid_type = 'sigmoid'
         sigmoid = True
-        print("Setting last layer to sigmoid layer due to BCE loss")
+        print("Setting last layer to sigmoid due to BCE loss")
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
@@ -83,21 +87,30 @@ def main(args):
                                 sigmoid=sigmoid).to(device)
                 elif model_arch == 'RNN':
                     if unique_init == True:
-                        torch.manual_seed(842)  # Ensure the same initialization for each model run
+                        seed = 42
+                        random.seed(seed)
+                        np.random.seed(seed)
+                        torch.manual_seed(seed)
+                        torch.cuda.manual_seed_all(seed)
+                        torch.backends.cudnn.deterministic = True
+                        torch.backends.cudnn.benchmark = False
+                        torch.use_deterministic_algorithms(True)
                     if model_type.startswith('acoustic_vec'):
                         out_size = int(model_type.split('_')[-1])
+                        # test_frequency = int(test_frequency*syll_vec['pi'].shape[-1])
                     else:
                         out_size = np.prod(syll_vec['pi'].shape[1:])
                     model = RNNModel(input_size=batch_sample[0].shape[-1],
                                     output_size=out_size,
+                                    num_layers=num_layer,
                                     hidden_size=hidden_size,                                         
                                     loss_type=loss_type).to(device)
                 optimizer = torch.optim.Adam(model.parameters(),lr=lr)
                 print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
-                        f'number: {simulation_num}, train batch: {batch_size_train}, test batch: {batch_size_test}')   
+                        f'number: {simulation_num}, train batch: {batch_size_train}, test batch every: {test_frequency}')   
                 out_name = (
                         f"{model_type}_{bottleneck_size}_exp-{exp}_n-{simulation_num}_lr-{lr}_train-{int(batch_size_train)}_test"
-                        f"-{int(batch_size_test)}_{optimizer.__class__.__name__}"
+                        f"-{int(test_frequency)}_{optimizer.__class__.__name__}"
                         f"_{loss_type}_{sigmoid_type}"
                     )
                 # If using unique initialization, load or save initial model state
@@ -129,7 +142,7 @@ def main(args):
                             out_loader_list,
                             test_in_loader,
                             test_out_list,
-                            batch_size_test,
+                            test_frequency,
                             stim_type,
                             model_type,
                             lr,
@@ -138,7 +151,7 @@ def main(args):
                             model_dir,
                             res_dir,
                             out_name,
-                            unique_init)
+                            num_layer)
                 # all_dfs.append(test_df)
                 print(f'done model #: {simulation_num},experiment: {exp}, stimulus type: {stim_type}, model type: {model_type}')
     # df_all = pd.concat(all_dfs)
@@ -147,16 +160,20 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--in_root', '-ir', type=str, help='Root directory for data', 
-                        default='/projects/jurovlab/stat_learning/data/')
-    parser.add_argument('--out_root', '-or', type=str, help='Root directory for results', 
-                        default='/projects/jurovlab/stat_learning/interim2/')
+    parser.add_argument('--root', '-r', type=str, default='/projects/jurovlab/stat_learning/', help='Root directory for all data')
+    parser.add_argument('--in_dir', '-id', type=str, help='Root directory for input data', 
+                        default='data/')
+    parser.add_argument('--out_dir', '-od', type=str, help='Root directory for results', 
+                        default='interim/')
+    parser.add_argument('--out_subdir', '-os', type=str, help='Root subdirectory for results', 
+                        default='interim/')
     parser.add_argument('--model_arch', '-ma', type=str, choices=['AE', 'RNN'], default='AE', help='Model architectures to run')
     parser.add_argument('--batch_size_train', '-btr', type=int, default=1, help='Training batch size')
     parser.add_argument('--batch_size_test', '-bte', type=int, default=1, help='Testing batch size')
+    parser.add_argument('--test_frequency', '-tf', type=int, default=1, help='Testing frequency')
     parser.add_argument('--bottleneck_size', '-bs', type=int, default=8, help='Size of the bottleneck layer')
     parser.add_argument('--hidden_size', '-hs', type=int, default=512, help='Size of the hidden layers')
-    parser.add_argument('--num_layer', '-nl', type=int, default=7, help='Number of layers in the model')
+    parser.add_argument('--num_layer', '-nl', type=int, default=1, help='Number of layers in the model')
     parser.add_argument('--epochs', '-e', type=int, default=16, help='Number of training epochs')
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--loss_type', '-lt', type=str, choices=['mse', 'bce'], default='mse', help='Type of loss function')
@@ -164,9 +181,9 @@ if __name__ == "__main__":
     parser.add_argument('--simulation_num', '-sn', type=int, default=0, help='Number of simulation run')
     parser.add_argument('--optional', '-o', type=str, default='', 
                         help='Optional out folder descriptor (output folder is [model type]_[loss type][optional])')
-    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_39_norm'], 
+    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_16_norm'], 
                         help='List of encoding types to use')
-    parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'zerovec-bigram', 'bigram'], 
+    parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'bigram', 'zerovec-bigram'], 
                         help='List of stimulus structure to use')
     args = parser.parse_args()
     print(args)

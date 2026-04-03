@@ -7,6 +7,7 @@ import os
 import re
 
 
+
 def load_syll_vec(root_exp,input_type,model_type,stim_type):
     syll_vec = torch.load(root_exp+f'{input_type}/syll_vec_{model_type}_{stim_type}.pt',weights_only=False)
     # syll_vec = reshape_syll_vec(syll_vec_)
@@ -66,22 +67,23 @@ def load_all_data(root_exp,model_type,input_type,batch_size_train,batch_size_tes
     return(syll_vec,in_loader,out_loader,test_in_loader,test_out_loader)
 
 
-def extract_errors(in_stim,out_stim,lossf,device,model=None):
+def extract_errors(in_stim,out_stim,lossf,num_layer,device,model=None):
     model.eval()
     in_stim = in_stim.to(torch.float32).to(device)
     out_stim = out_stim.to(torch.float32).to(device)
     if model.__class__.__name__ == 'AE':
         code, recon = model(in_stim)
     elif model.__class__.__name__ == 'RNNModel':
-        h0 = torch.zeros(in_stim.shape[0], 1, model.hidden_size).to(device)
-        recon = model(in_stim, h0)
+        h0 = torch.zeros(num_layer, in_stim.shape[0], model.hidden_size).to(device)
+        recon, hidden = model(in_stim, h0)
+        hidden = hidden.detach()
         recon = recon.unsqueeze(1)
     total_loss = float(lossf(recon, out_stim).cpu().detach().numpy())
     recon = recon.cpu().detach().numpy()
     return(recon,total_loss)
 
-def write_out_res(res,in_stim,out_stim,in_name,out_name,condition,lossf,device,model=None):
-    recon, loss_item = extract_errors(in_stim, out_stim, lossf, device, model=model)
+def write_out_res(res,in_stim,out_stim,in_name,out_name,condition,lossf,num_layer,device,model):
+    recon, loss_item = extract_errors(in_stim, out_stim, lossf, num_layer, device, model=model)
     # print('recon', recon)
     res['loss'].append(loss_item)
     res['in_label'].append(in_name)
@@ -89,15 +91,19 @@ def write_out_res(res,in_stim,out_stim,in_name,out_name,condition,lossf,device,m
     res['condition'].append(condition)
     return(res)
 
-def test_model(test_in_loader,test_out_list,model,device,batch_id,lossf,epoch_num,stim_type,model_type,lr,exp,simulation_num):
+def test_model(test_in_loader,test_out_list,model,device,num_layer,batch_id,lossf,epoch_num,stim_type,model_type,lr,exp,simulation_num):
     res = {'condition':[],'loss':[],'in_label':[],'out_label':[]}
     for i,test_in in enumerate(test_in_loader):
-        in_batch = test_in[0]
+        in_batch = test_in[0].to(device)
         # in_batch = test_in[0].reshape(1,1,-1) #FIXME
         in_label = str(test_in[1][0])
-        out_batch = test_out_list[i][0]
+        out_batch = test_out_list[i][0].to(device)
         out_label = str(test_out_list[i][1][0])
-        condition = int(test_in[2])
+        if test_in[2].shape[0]>1:
+            print('WARNING: more than one condition in test batch, taking first one only')
+            condition = int(test_in[2][0])
+        else:
+            condition = int(test_in[2])
         res = write_out_res(res,
                             in_batch,
                             out_batch,
@@ -105,6 +111,7 @@ def test_model(test_in_loader,test_out_list,model,device,batch_id,lossf,epoch_nu
                             out_label,
                             condition,
                             lossf,
+                            num_layer,
                             device,
                             model)
     df=pd.DataFrame(res)
@@ -125,7 +132,7 @@ def train_model(model,
                 out_loader_list,
                 test_in_loader,
                 test_out_list,
-                batch_size_test,
+                test_frequency,
                 stim_type,
                 model_type,
                 lr,
@@ -134,7 +141,7 @@ def train_model(model,
                 model_dir,
                 out_dir,
                 out_name,
-                unique_init):
+                num_layer):
     loss_track = []
 
     # Check if any results already exist
@@ -156,7 +163,7 @@ def train_model(model,
     # Else, start training from scratch
     else:
         print(f'Starting training for #{simulation_num} from scratch.')
-        test_df = test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
+        test_df = test_model(test_in_loader,test_out_list,model,device,num_layer,0,loss_fun,
                             0,stim_type,model_type,lr,exp,simulation_num)  
         test_df.to_csv(out_dir+f'{out_name}_ep-0.csv',compression='gzip',index=False)
         latest_ep = 1
@@ -172,21 +179,21 @@ def train_model(model,
                 codes, decoded = model(in_batch)
             elif model.__class__.__name__ == 'RNNModel':
                 # h0 = torch.zeros(in_batch.shape).to(device)
-                decoded = model(in_batch)
-                decoded = decoded.unsqueeze(1)
+                decoded, hidden = model(in_batch) #NEW
+                hidden = hidden.detach() 
+                decoded = decoded.unsqueeze(1) #TODO
             optimizer.zero_grad()
             loss = loss_fun(decoded,out_batch)
             loss_track.append(float(loss))
             loss.backward()
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
             optimizer.step()
-            if batch_size_test==1: #FIXME 
-                test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
+            if i%test_frequency==0: #FIXME 
+                test_dfs.append(test_model(test_in_loader,test_out_list,model,device,num_layer,i,loss_fun,
                                             epoch,stim_type,model_type,lr,exp,simulation_num))
-            # if i > 2: #FIXME - remove
-            #     break
-        if batch_size_test>1: #FIXME 
-            test_dfs.append(test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
-                                        epoch,stim_type,model_type,lr,exp,simulation_num))
+        # if batch_size_test>1: #FIXME 
+        #     test_dfs.append(test_model(test_in_loader,test_out_list,model,device,num_layer,0,loss_fun,
+        #                                 epoch,stim_type,model_type,lr,exp,simulation_num))
         test_df_epoch = pd.concat(test_dfs)
         torch.save({"epoch": epoch,
                     "model_state_dict": model.state_dict(),

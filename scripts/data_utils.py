@@ -48,12 +48,13 @@ def get_phon_vecs(sylls,stims_file=None):
 
 def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels):
     # tgt_sr = 16000
-    n_fft=256
+    n_fft=1024 #512
     syll_vec = {}
     for syll in sylls_ex:
         y, sr = librosa.load(root_stims+syll+'.wav', sr=None)
         print('sampling rate ', sr)
         # audio = librosa.resample(y, orig_sr=sr, target_sr=tgt_sr)
+        # mel_specgram = librosa.feature.melspectrogram(y=audio, sr=tgt_sr, n_fft=n_fft, hop_length=n_fft//4, n_mels=n_freqchannels, window='hann')
         mel_specgram = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=n_fft//4, n_mels=n_freqchannels, window='hann')
         # TODO: log the mel spectrogram
         syll_vec[syll] = np.reshape(mel_specgram[np.newaxis, :], (1, 1, -1))

@@ -70,28 +70,29 @@ class AE(torch.nn.Module):
 
 
 class RNNModel(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=8, loss_type='bce'):
+    def __init__(self, input_size, output_size, num_layers=1, hidden_size=8, loss_type='bce'):
         super().__init__()
         self.loss_type = loss_type
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.output_size = output_size
-        self.rnn = nn.RNN(self.input_size, self.hidden_size, batch_first=True, nonlinearity='relu')
+        self.num_layers = num_layers
+        self.rnn = nn.RNN(self.input_size, self.hidden_size, num_layers=self.num_layers, batch_first=True, nonlinearity='relu')
         self.fc = nn.Linear(self.hidden_size, self.output_size)
         # self.sigmoid = nn.Sigmoid()
         # self.relu = nn.ReLU()
         if loss_type == "bce":
             self.activation = nn.Sigmoid()
         elif loss_type == "mse":
-            self.activation = nn.ReLU()
+            self.activation = nn.Sigmoid() #ReLU()
         else:
             raise ValueError("Unsupported loss type. Use 'bce' or 'mse'.")
     def forward(self, x, h0=None):
         if h0 is not None:
-            out, _ = self.rnn(x,h0)
+            out, hn = self.rnn(x,h0)
         else:
-            out, _ = self.rnn(x)
+            out, hn = self.rnn(x)
         out = self.fc(out[:, -1, :])
         out = self.activation(out)
-        return out
+        return out, hn
     

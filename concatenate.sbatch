@@ -2,7 +2,7 @@
 
 #SBATCH --export=ROOT_PATH=/projects/jurovlab/stat_learning ### Export environment variables to job
 
-#SBATCH --partition=memorylong              ### Partition (like a queue in PBS)
+#SBATCH --partition=memory              ### Partition (like a queue in PBS)
 #SBATCH --account=jurovlab          ### Account used for job submission
 # #SBATCH --requeue
 
@@ -11,10 +11,10 @@
 #SBATCH --output=tmp/%x.out               ### File in which to store job output
 #SBATCH --error=tmp/%x.err                ### File in which to store job error messages
 
-#SBATCH --time=2-00:00:00                ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --time=1-00:00:00                ### Wall clock time limit in Days-HH:MM:SS
 #SBATCH --nodes=1                        ### Number of nodes needed for the job
-#SBATCH --cpus-per-task=8                ### Number of gpus to be launched per Task
-#SBATCH --mem-per-cpu=256G
+#SBATCH --cpus-per-task=16                ### Number of gpus to be launched per Task
+#SBATCH --mem-per-cpu=32G
 
 ### Load needed modules
 module purge
@@ -23,6 +23,7 @@ source $(conda info --base)/etc/profile.d/conda.sh  # ensure conda commands work
 conda activate statenv
 
 ### Run your actual program
-srun -u $(which python) /projects/jurovlab/stat_learning/scripts/concatenate.py -m=rnn -o=mse -e unigram -f=acoustic_vec
+srun -u $(which python) /projects/jurovlab/stat_learning/scripts/concatenate.py \
+    -m=rnn -o=mse -od='results/results_512/' -id='interim/interim_512/' -e='unigram'
 ### Deactivate conda environment
 conda deactivate

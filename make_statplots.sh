@@ -3,8 +3,8 @@
 #SBATCH --export=ROOT_PATH=/projects/jurovlab/stat_learning ### Export environment variables to job
 
 #SBATCH --account=jurovlab   ### Account used for job submission
-#SBATCH --partition=jurov     #jurov     #jurov ###gpu
-#SBATCH --job-name=plot_p    ### Job Name
+#SBATCH --partition=memory     #jurov     #jurov ###gpu
+#SBATCH --job-name=plot_clipnorm   ### Job Name
 #SBATCH --time=1-00:00:00     ### Wall clock time limit in Days-HH:MM:SS
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
@@ -27,7 +27,8 @@ conda activate statenv
 
 ### Run your actual program
 
-srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -et onehot -st unigram -lt=mse -ir=/projects/jurovlab/stat_learning/results/
+srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -st unigram \
+    --logy -of=results/results_512 #-et acoustic_vec_16
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -et acoustic_new_norm -st unigram -lt=mse -ir=/projects/jurovlab/stat_learning/results_old/ --logy
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=mse_acoustic_vec 
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=bce_acoustic_vec 

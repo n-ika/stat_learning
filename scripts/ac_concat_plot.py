@@ -6,10 +6,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 import os
+from multiprocessing import Pool
+from functools import partial
 
-id_cols = ['exp',
+
+id_cols = [
             'condition',
-            # 'in_label','out_label',
             'btc_ep',
             ]
 
@@ -87,15 +89,52 @@ def interval_coding(kept):
     return intervals_with_significant_differences_in_median
 
 
+
+def process_file(root, file):
+    path = os.path.join(root, file)
+    try:
+        df = pd.read_csv(path, compression="gzip")
+    except Exception:
+        df = pd.read_csv(path)
+    df['btc_ep'] = [0 if epoch==0 else (epoch-1)*809*28+batch+1 for batch, epoch in zip(df['batch_id'], df['epochs'])]
+    df.drop(columns=['lr','in_label','out_label','stim_type','model_type','batch_id','epochs','exp'], inplace=True) 
+    return df.reset_index(drop=True)
+
+def concatenate_dfs(root, NUM_PROCS, exp):
+    files = [
+        f for f in os.listdir(root)
+        if f.endswith(".csv")
+        and not f.startswith("loss")
+        and (f'exp-{exp}' in f)
+    ]
+    with Pool(processes=NUM_PROCS) as pool:
+        dfs = pool.map(partial(process_file, root), files)
+    return pd.concat(dfs, ignore_index=True)
+
+
+
 def plot_stats(df_exp, exp, stim_structure, model_type, type_loss, intervals_with_significant_differences_in_median, out_root, logy):
-    fig, axes = plt.subplots(figsize=(15, 5), sharey=False)
+    label_fontsize = 24
+    model_name = model_type.split('_')[0]
+    if model_name == 'phon':
+        encoding_type = 'Phon. Enc.'
+    elif model_name.startswith('acoustic'):
+        encoding_type = 'Acoustic Enc.'
+    elif model_name == 'onehot':
+        encoding_type = 'Categorical Enc.'
+    stim_type_readable = stim_structure.capitalize()
+    if '9' in type_loss:
+        btc = 9
+    else:
+        btc = 1
+    fig, axes = plt.subplots(figsize=(10, 5), sharey=False)
     group_cols = ['condition']
     for keys, sub in df_exp.groupby(group_cols):
         sub = sub.sort_values("btc_ep")
         # readable label
         condition = keys[0]
         label = f"{'Word' if condition == 1 else 'Part Word'}"
-        axes.plot(sub["btc_ep"], sub["median"], label=label)
+        axes.plot(sub["btc_ep"], sub["median"], label=label, linewidth=3)
         
         # band between Q1 and Q3 if present
         if ('q1' in sub.columns) and ('q3' in sub.columns):
@@ -121,103 +160,93 @@ def plot_stats(df_exp, exp, stim_structure, model_type, type_loss, intervals_wit
     # plotting the results
     print('plotting stats')
     for interval in intervals_with_significant_differences_in_median:
-        axes.plot(interval, [0,0], '-k')
+        axes.plot(interval, [1,1], '-k', linewidth=5, label='Paired sign test significance' if interval[0]==intervals_with_significant_differences_in_median[0][0] else "")
     plt.grid()
 
-    axes.set_xlabel("Training step")
-    axes.set_ylabel("Loss value")
-    axes.legend(fontsize='small', ncol=1)
-    axes.set_title(f"Experiment {exp}")
-
+    axes.set_xlabel("Training step", fontsize=label_fontsize)
+    axes.set_ylabel("Loss value", fontsize=label_fontsize)
+    # axes.legend(ncol=1, fontsize=label_fontsize, bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+    axes.set_title(f"{stim_type_readable} | {encoding_type} | Btc. = {btc} | Exp. {exp}", fontsize=label_fontsize+2, pad=20) 
     if logy:
         axes.set_yscale('log')
-    axes.set_ylabel("Loss value")
-    fig.suptitle(f"{df_exp.iloc[0]['stim_type'].capitalize()} | {model_type.split('_')[0].capitalize()}: Median, IQR, and full range over training")
+    axes.set_ylabel("Loss value", fontsize=label_fontsize)
+    # fig.suptitle(f"{stim_type_readable} | {encoding_type}", fontsize=label_fontsize)
+    ticks = [0.01, 0.1, 1] #1e-5, 1e-4, 1e-3, 
+    axes.set_yticks(ticks)
+    epochs = [1,2,4,8,16]
+    lines_at_x = [int(df_exp['btc_ep'].max()/x) for x in epochs]
+    for x in lines_at_x:
+        plt.axvline(x=x, color='k', linestyle='--', ymin=0, ymax=1)
+    plt.tick_params(axis='both', which='major', labelsize=label_fontsize-2)
     plt.tight_layout()
-    plt.savefig(out_root+f"{model_type}_{stim_structure}_{type_loss}_{exp}{'_logy' if logy else ''}.svg")
+    plt.savefig(out_root+f"{model_type}_{stim_structure}_{type_loss}_{exp}{'_logy' if logy else ''}.pdf")
+    # plt.ylim(0, 1)
+    plt.show()
     plt.close()
+    return(df_exp,intervals_with_significant_differences_in_median)
 
 
-def load_and_process_data(args):
-    in_root = args.in_root
-    out_root = args.out_root
-    os.makedirs(out_root, exist_ok=True)
-    model_architecture = args.architecture
-    type_loss = args.loss_type
+def process_dfs(args):
+    architecture = args.architecture
+    type_loss = args.type_loss
     encoding_type = args.encoding_type
     stim_structure = args.stim_structure
+    root = args.root
+    root_out = root+args.out_dir
+    root_in = root+args.in_dir
     logy = args.logy
+    additional = args.additional
     exp_n = args.exp_n
-    base_dir =  in_root + f'/{model_architecture}_results_{type_loss}/{stim_structure}_data/out/'
+    fig_path = root_out+f'/figures/'
+    os.makedirs(root_out, exist_ok=True)
+    os.makedirs(fig_path, exist_ok=True)
+
+    # Determine number of available CPU cores
+    n_cpus = os.cpu_count() or 1   # may return None
+    NUM_PROCS = max(1, n_cpus - 1) # leave 1 core free
+    print(f"Using {NUM_PROCS} out of {n_cpus} available CPU cores for multiprocessing.")
+
+    print(f"Concatenating for encoding type {encoding_type}, stim structure {stim_structure}, exp #{exp_n}")
+    root_data = root_in+f'/{architecture}_results_{type_loss}/{stim_structure}_data/out/'
+    df = concatenate_dfs(root_data, NUM_PROCS=NUM_PROCS, exp=exp_n)
+    df.to_csv(root_out+f'/{architecture}_{stim_structure}_{type_loss}{additional}_{exp_n}.csv',compression='gzip')
+    print(f"Done saving full df")
     
-    groups = {}
-    print('loading paths of original dfs')
-    for root, dirs, fnames in os.walk(base_dir):
-        for fname in fnames:
-            if not fname.endswith('.csv'):
-                continue
-            if 'exp-' not in fname or 'ep-' not in fname:
-                continue
-            if fname.startswith(encoding_type):
-                # cheap way to get exp and ep substrings (you can parse numbers if needed)
-                exp_part = next((s for s in fname.split('_') if s.startswith('exp-')), None)
-                ep_part  = next((s for s in fname.split('_') if s.startswith('ep-')), None)
-
-                if exp_part and ep_part:
-                    key = (exp_part, ep_part)   # e.g. ('exp-2', 'ep-7')
-                    path = os.path.join(root, fname)
-                    groups.setdefault(key, []).append(path)
+    intervals_with_significant_differences_in_median = interval_coded_BY_corrected_sign_test(df)
+    np.save(root_out+f'/intervals_{architecture}_{stim_structure}_{type_loss}{additional}_{exp_n}.npy', intervals_with_significant_differences_in_median)
+    print(f"Done saving intervals")
     
-    print('loading original dfs')
-    fin = []
-    intervals = []
-    for (exp, ep), paths in groups.items():
-        if int(exp.split('-')[-1]) == exp_n:
-            dfs = []
-            print(f"Group {exp}, {ep}: {len(paths)} files")
-            for path in paths:
-                df = pd.read_csv(path, compression='gzip')
-                df.drop(columns=['lr','in_label','out_label','stim_type','model_type'], inplace=True) 
-                dfs.append(df)
-            combined_df = pd.concat(dfs, ignore_index=True)
-            combined_df['btc_ep'] = [0 if epoch==0 else (epoch-1)*809+batch+1 for batch, epoch in zip(combined_df['batch_id'], combined_df['epochs'])]
-            intervals_with_significant_differences_in_median = interval_coded_BY_corrected_sign_test(combined_df)
-            df_exp = get_stat_point(combined_df,id_cols)
-            fin.append(df_exp)
-            intervals.append(intervals_with_significant_differences_in_median)
+    df = get_stat_point(df,id_cols)
+    df.to_csv(root_out+f'/stat_{architecture}_{stim_structure}_{type_loss}{additional}_{exp_n}.csv',compression='gzip')
+    print(f"Done saving stat df")
 
+    plot_stats(df, exp_n, stim_structure, type_loss, intervals_with_significant_differences_in_median, fig_path, logy, additional)
 
-    print('concatenating final stat df')
-    dffull = pd.concat(fin, ignore_index=True).reset_index(drop=True)
-    dffull['stim_type'] = stim_structure
-    non_empty = [arr for arr in intervals if arr.size > 0]
-    stacked = np.vstack(non_empty)
-    sorted_arr = stacked[np.argsort(stacked[:, 0])]
-    dffull.to_csv(out_root+f'data/summary_{model_architecture}_{stim_structure}_{type_loss}_exp{exp_n}.csv', index=False)
-    np.save(out_root+f'data/intervals_{model_architecture}_{stim_structure}_{type_loss}_exp{exp_n}.npy', sorted_arr)
-    print('plotting')
-    plot_stats(dffull, exp, stim_structure, encoding_type, type_loss, sorted_arr, out_root, logy)
-    print('done')
-
+    print("All done!")
 
 def main():
-    parser = argparse.ArgumentParser(description='Statistical analysis of model results')
-    parser.add_argument('--in_root', '-ir', type=str, help='Root directory for input data', 
+    parser = argparse.ArgumentParser(description='Concatenate CSV files.')
+    parser.add_argument('--architecture', '-a', type=str, help='Model type, i.e. rnn/ae')
+    parser.add_argument('--type_loss', '-tl', type=str, help='Output name: loss + any additions, i.e. bce_batch9_ui')
+    parser.add_argument('--root', '-r', type=str, help='Root directory for output data', 
                         default='/projects/jurovlab/stat_learning/')
-    parser.add_argument('--out_root', '-or', type=str, help='Root directory for output data', 
-                        default='/projects/jurovlab/stat_learning/results/figures/')                    
-    parser.add_argument('--architecture', '-a', type=str, required=True, help='Type of model to analyze (e.g. rnn, ae)')
-    parser.add_argument('--encoding_type', '-et', type=str, default='acoustic_vec_1', 
+    parser.add_argument('--out_dir', '-od', type=str, help='Root directory for output data', 
+                        default='results/')
+    parser.add_argument('--in_dir', '-id', type=str, help='Root directory for input data', 
+                        default='interim/') 
+    # parser.add_argument('--do_stats', '-ds', action='store_true', help='Whether to compute statistics or not')
+    parser.add_argument('--additional', '-ad', type=str, default='', help='Additional string to append to output filename')
+    parser.add_argument('--encoding_type', '-et', type=str, default='acoustic_vec_16', 
                         help='Encoding types to use, i.e. unigram, bigram, zerobigram')
     parser.add_argument('--stim_structure', '-st', type=str, default='unigram', 
                         help='Stimulus structure to use, i.e. unigram')
-    parser.add_argument('--loss_type', '-lt', type=str, required=True, help='Type of loss function used (e.g. bce, mse, bce_batch9_ui)')
-    parser.add_argument('--logy', action='store_true', help='Use logarithmic scale for y axis')
     parser.add_argument('--exp_n', '-en', type=int, required=True, default=1, help='Experiment number, 1 or 2')
+    parser.add_argument('--logy', '-ly', action='store_true', help='Whether to use log scale for y axis')
     args = parser.parse_args()
-    print('Arguments:', args)
-    load_and_process_data(args)
+    print(args)
+    process_dfs(args)
 
 if __name__ == '__main__':
     main()
+
 
