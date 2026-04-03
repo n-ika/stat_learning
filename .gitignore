@@ -8,3 +8,4 @@ __pycache__/
 *.npz
 models_testing_params/
 tmp/
+figures*
