@@ -10,15 +10,7 @@ import re
 
 def load_syll_vec(root_exp,input_type,model_type,stim_type):
     syll_vec = torch.load(root_exp+f'{input_type}/syll_vec_{model_type}_{stim_type}.pt',weights_only=False)
-    # syll_vec = reshape_syll_vec(syll_vec_)
     return(syll_vec)
-
-# def reshape_syll_vec(syll_vec_):
-#     syll_vec = {}
-#     for key in syll_vec_.keys():
-#         syll_vec[key] = torch.tensor(syll_vec_[key].astype(np.float32).reshape(1, 1, -1))
-#     return(syll_vec)
-
 
 class CreateDataset():
     def __init__(self, data, labels, conditions=None):

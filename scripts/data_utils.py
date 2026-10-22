@@ -23,18 +23,18 @@ def get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels,type_transform):
 
 def get_onehot_vecs(sylls):
     syll_vec = {}
-    onehot = F.one_hot(torch.arange(0, 12).view(12,1), num_classes=12)
+    onehot = F.one_hot(torch.arange(0, 12).view(12), num_classes=12)
     # randomize order
     sylls = np.random.choice(sylls, size=12, replace=False)
     for i in range(12):
         syll_vec[sylls[i]] = onehot[i]
-    syll_vec['null'] = torch.zeros((1,12))
+    syll_vec['null'] = torch.zeros((12))
     return(syll_vec)
 
 def get_phon_vecs(sylls,stims_file=None):
     if stims_file is None:
         stims_file = 'data/phonological_mapping.txt'
-    encoding_unigram = pd.read_csv(stims_file,header=None,sep='\s+')
+    encoding_unigram = pd.read_csv(stims_file,header=None,sep='\n+')
     # make encodings into a dictionary
     encodings = {}
     for i in range(encoding_unigram.shape[0]):
@@ -42,8 +42,8 @@ def get_phon_vecs(sylls,stims_file=None):
     syll_vec = {}
     for itm in sylls:
         if itm not in syll_vec.keys():
-            syll_vec[itm] = np.reshape(np.vstack([encodings[itm[0]],encodings[itm[1]]]).astype('float32'),(1,encodings[itm[0]].shape[0]*2))
-    syll_vec['null'] = np.zeros([1,encodings[itm[0]].shape[-1]*2])
+            syll_vec[itm] = np.reshape(np.vstack([encodings[itm[0]],encodings[itm[1]]]).astype('float32'),(encodings[itm[0]].shape[0]*2))
+    syll_vec['null'] = np.zeros([encodings[itm[0]].shape[-1]*2])
     return(syll_vec)
 
 def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels, type_transform='mel'):
@@ -61,8 +61,8 @@ def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels, type_transform='mel'):
             mel_dB = librosa.power_to_db(mel_specgram, ref=0.00002)
         else:
             mel_dB = librosa.feature.mfcc(y=y, sr=sr,n_fft=n_fft, hop_length=step_size_samples, n_mfcc=n_freqchannels) #FIXME testing for MFCCs
-        syll_vec[syll] = np.reshape(mel_dB[np.newaxis, :], (1, -1))
-    syll_vec['null'] = np.reshape(np.zeros(mel_dB[np.newaxis, :].shape), (1, -1))
+        syll_vec[syll] = np.reshape(mel_dB, (-1))
+    syll_vec['null'] = np.reshape(np.zeros(mel_dB.shape), (-1))
     return(syll_vec)
 
 def append_data(syll_vec,data,label_in1,label_out,condition=None,label_in2=None):
@@ -107,8 +107,8 @@ def create_train_data(transcript_df,syll_vec,stim_type):
             elif stim_type=='zerovec-bigram':
                 train = append_data(syll_vec, train, 'null', word[1], 1, word[0])
                 train = append_data(syll_vec, train, word[0], word[2], 1, word[1])
-    train_in = np.reshape(np.stack(train['data_in'], axis=0),(-1,syll_vec['pi'].shape[1]*N))
-    train_out = np.reshape(np.stack(train['data_out'], axis=0),(-1,syll_vec['pi'].shape[1]))
+    train_in = np.reshape(np.stack(train['data_in'], axis=0),(-1,syll_vec['pi'].shape[0]*N))
+    train_out = np.reshape(np.stack(train['data_out'], axis=0),(-1,syll_vec['pi'].shape[0]))
     labels_in=train['labels_in']
     labels_out=train['labels_out']
     conditions=train['conditions']
@@ -132,8 +132,8 @@ def create_test_data(test_items,syll_vec,stim_type):
             N = 1
             test = append_data(syll_vec, test, word[0], word[1], condition, None)
             test = append_data(syll_vec, test, word[1], word[2], condition, None)
-    test_in = np.reshape(np.stack(test['data_in'], axis=0),(-1,syll_vec['pi'].shape[1]*N))
-    test_out = np.reshape(np.stack(test['data_out'], axis=0),(-1,syll_vec['pi'].shape[1]))
+    test_in = np.reshape(np.stack(test['data_in'], axis=0),(-1,syll_vec['pi'].shape[0]*N))
+    test_out = np.reshape(np.stack(test['data_out'], axis=0),(-1,syll_vec['pi'].shape[0]))
     labels_in=test['labels_in']
     labels_out=test['labels_out']
     conditions=test['conditions']

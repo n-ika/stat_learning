@@ -49,25 +49,24 @@ def main(args):
                 save_data('test_in',test_in,test_labels_in,test_conditions,out_dir,model_type)
                 save_data('test_out',test_out,test_labels_out, test_conditions, out_dir, model_type)
                 if model_type.startswith('acoustic') and stim_type=='unigram':
-                    for N in [1]:
-                        syll_vec = {k:s.reshape(s.shape[0], s.shape[1], n_freqchannels, -1) for k,s in syll_vec.items()}
-                        torch.save(syll_vec, out_dir+f'syll_vec_acoustic_vec_{n_freqchannels}_{stim_type}.pt')
-                        M = syll_vec['pi'].shape[-1]
-                        train_in = train_in.reshape(-1, N, n_freqchannels)
-                        train_labels_in = np.repeat(train_labels_in, M//N).tolist()
-                        train_out = train_out.reshape(-1, N, n_freqchannels)
-                        train_labels_out = np.repeat(train_labels_out, M//N).tolist()
-                        test_in = test_in.reshape(-1, N, n_freqchannels)
-                        test_labels_in = np.repeat(test_labels_in, M//N).tolist()
-                        test_out = test_out.reshape(-1, N, n_freqchannels)
-                        test_labels_out = np.repeat(test_labels_out, M//N).tolist()
-                        train_conditions = np.repeat(train_conditions, M//N).tolist()
-                        test_conditions = np.repeat(test_conditions, M//N).tolist()
-                        save_data('train_in',train_in,train_labels_in,train_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
-                        save_data('train_out',train_out,train_labels_out,train_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
-                        save_data('test_in',test_in,test_labels_in,test_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
-                        save_data('test_out',test_out,test_labels_out, test_conditions, out_dir, f'acoustic_vec_{n_freqchannels}')
-                        print(f'{stim_type} data, acoustic_vec_{n_freqchannels} model, exp: {exp}, train in shape: {train_in.shape}, train out shape: {train_out.shape}, test in shape: {test_in.shape}, test out shape: {test_out.shape}')
+                    syll_vec = {k:s.reshape(n_freqchannels, -1) for k,s in syll_vec.items()}
+                    torch.save(syll_vec, out_dir+f'syll_vec_acoustic_vec_{n_freqchannels}_{stim_type}.pt')
+                    M = syll_vec['pi'].shape[-1]
+                    train_in = train_in.reshape(-1, n_freqchannels)
+                    train_labels_in = np.repeat(train_labels_in, M).tolist()
+                    train_out = train_out.reshape(-1, n_freqchannels)
+                    train_labels_out = np.repeat(train_labels_out, M).tolist()
+                    test_in = test_in.reshape(-1, n_freqchannels)
+                    test_labels_in = np.repeat(test_labels_in, M).tolist()
+                    test_out = test_out.reshape(-1, n_freqchannels)
+                    test_labels_out = np.repeat(test_labels_out, M).tolist()
+                    train_conditions = np.repeat(train_conditions, M).tolist()
+                    test_conditions = np.repeat(test_conditions, M).tolist()
+                    save_data('train_in',train_in,train_labels_in,train_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
+                    save_data('train_out',train_out,train_labels_out,train_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
+                    save_data('test_in',test_in,test_labels_in,test_conditions,out_dir,f'acoustic_vec_{n_freqchannels}')
+                    save_data('test_out',test_out,test_labels_out, test_conditions, out_dir, f'acoustic_vec_{n_freqchannels}')
+                    print(f'{stim_type} data, acoustic_vec_{n_freqchannels} model, exp: {exp}, train in shape: {train_in.shape}, train out shape: {train_out.shape}, test in shape: {test_in.shape}, test out shape: {test_out.shape}')
     print('data saved!')
 
 if __name__ == "__main__":
