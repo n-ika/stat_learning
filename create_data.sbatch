@@ -20,5 +20,5 @@ module load miniconda3/20240410
 source $(conda info --base)/etc/profile.d/conda.sh  # ensure conda commands work
 conda activate statenv
 ### Run your actual program
-srun -u $(which python) $ROOT_PATH/scripts/create_data.py --n_freqchannels=128
+srun -u $(which python) $ROOT_PATH/scripts/create_data.py --n_freqchannels=128 --type_transform=mel
 conda deactivate

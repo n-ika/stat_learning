@@ -7,7 +7,7 @@
 # #SBATCH --requeue
 
 ### NOTE: %u=userID, %x=jobName, %N=nodeID, %j=jobID, %A=arrayMain, %a=arraySub
-#SBATCH --job-name=concat_mse         ### Job Name
+#SBATCH --job-name=concat8        ### Job Name
 #SBATCH --output=tmp/%x.out               ### File in which to store job output
 #SBATCH --error=tmp/%x.err                ### File in which to store job error messages
 
@@ -24,6 +24,6 @@ conda activate statenv
 
 ### Run your actual program
 srun -u $(which python) /projects/jurovlab/stat_learning/scripts/concatenate.py \
-    -m=rnn -o=mse -od='results/results_512/' -id='interim/interim_512/' -e='unigram'
+    -m=rnn -o=mse -od='results/results8_log128/' -id='interim/interim8_log128/' -e='unigram'
 ### Deactivate conda environment
 conda deactivate

@@ -186,6 +186,7 @@ def load_and_process_data(args):
                 del df_full['Unnamed: 0']
                 df_full = df_full.reset_index()
                 del df_full['index']
+                print('df full',df_full.head())
                 # df_full['btc_ep'] = df_full['epochs'].copy()
                 # if df_full.batch_id.unique().shape[0]>500:
                 max_val = df_full[df_full['epochs'] == 1]['batch_id'].max() + 1
@@ -196,7 +197,7 @@ def load_and_process_data(args):
                 #     df_full['btc_ep'] = [0 if epoch==0 else (epoch-1)*59+batch+1 for batch, epoch in zip(df_full['batch_id'], df_full['epochs'])]
                 # selecting data for one xp and one model type
                 test_data = df_full[(df_full['model_type'] == encoding_type) & (df_full['exp'] == exp)]
-                
+                print('df full',test_data.head())
                 #TODO
                 # test_data = test_data[test_data['btc_ep']<=810]
                 

@@ -79,20 +79,11 @@ class RNNModel(nn.Module):
         self.num_layers = num_layers
         self.rnn = nn.RNN(self.input_size, self.hidden_size, num_layers=self.num_layers, batch_first=True, nonlinearity='relu')
         self.fc = nn.Linear(self.hidden_size, self.output_size)
-        # self.sigmoid = nn.Sigmoid()
-        # self.relu = nn.ReLU()
-        if loss_type == "bce":
-            self.activation = nn.Sigmoid()
-        elif loss_type == "mse":
-            self.activation = nn.Sigmoid() #ReLU()
-        else:
-            raise ValueError("Unsupported loss type. Use 'bce' or 'mse'.")
+        self.activation = nn.Sigmoid()
+        
     def forward(self, x, h0=None):
-        if h0 is not None:
-            out, hn = self.rnn(x,h0)
-        else:
-            out, hn = self.rnn(x)
-        out = self.fc(out[:, -1, :])
+        out, hn = self.rnn(x,h0)
+        out = self.fc(out) # dims: sequence_length=1, hidden_size
         out = self.activation(out)
         return out, hn
     

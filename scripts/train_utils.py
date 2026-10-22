@@ -76,7 +76,6 @@ def extract_errors(in_stim,out_stim,lossf,num_layer,device,model=None):
     elif model.__class__.__name__ == 'RNNModel':
         h0 = torch.zeros(num_layer, in_stim.shape[0], model.hidden_size).to(device)
         recon, hidden = model(in_stim, h0)
-        hidden = hidden.detach()
         recon = recon.unsqueeze(1)
     total_loss = float(lossf(recon, out_stim).cpu().detach().numpy())
     recon = recon.cpu().detach().numpy()
@@ -170,30 +169,29 @@ def train_model(model,
     # Start training loop
     for epoch in range(latest_ep,epochs+1):
         test_dfs = []
+        hidden = None
         for i, in_batch_ in enumerate(in_loader):
             model.train()
             out_batch = out_loader_list[i][0].to(device)
-            # in_batch = in_batch_[0].reshape(1,1,-1).to(device) #FIXME
             in_batch = in_batch_[0].to(device)
-            if model.__class__.__name__ == 'AE':
-                codes, decoded = model(in_batch)
-            elif model.__class__.__name__ == 'RNNModel':
-                # h0 = torch.zeros(in_batch.shape).to(device)
-                decoded, hidden = model(in_batch) #NEW
-                hidden = hidden.detach() 
-                decoded = decoded.unsqueeze(1) #TODO
             optimizer.zero_grad()
-            loss = loss_fun(decoded,out_batch)
-            loss_track.append(float(loss))
-            loss.backward()
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+
+            avg_loss = 0.0
+            for j in range(in_batch.shape[0]):
+                if hidden is not None:
+                    hidden = hidden.detach()
+                decoded, hidden = model(in_batch[j:j+1, :], hidden)
+                # decoded = decoded.unsqueeze(1) #TODO     
+                loss = loss_fun(decoded,out_batch)
+                loss = loss / in_batch.shape[0]  # Average loss over the batch
+                loss.backward()
+                avg_loss += float(loss)
+
+            loss_track.append(avg_loss)
             optimizer.step()
             if i%test_frequency==0: #FIXME 
                 test_dfs.append(test_model(test_in_loader,test_out_list,model,device,num_layer,i,loss_fun,
                                             epoch,stim_type,model_type,lr,exp,simulation_num))
-        # if batch_size_test>1: #FIXME 
-        #     test_dfs.append(test_model(test_in_loader,test_out_list,model,device,num_layer,0,loss_fun,
-        #                                 epoch,stim_type,model_type,lr,exp,simulation_num))
         test_df_epoch = pd.concat(test_dfs)
         torch.save({"epoch": epoch,
                     "model_state_dict": model.state_dict(),

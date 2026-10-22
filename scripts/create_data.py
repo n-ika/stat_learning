@@ -12,6 +12,8 @@ def main(args):
     root = args.root
     out_dir = args.out_dir
     n_freqchannels = args.n_freqchannels
+    type_transform = args.type_transform
+
     for stim_type in ['unigram','bigram','zerovec-bigram']:
         for model_type in ['onehot', 'phon', f'acoustic_{n_freqchannels}_norm']: 
             for exp in [1,2]:
@@ -29,7 +31,7 @@ def main(args):
                 out_dir = root + f'/data/' + exp_dir + f"{stim_type}_data/"
                 os.makedirs(out_dir, exist_ok=True)
 
-                syll_vec = get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels)
+                syll_vec = get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels,type_transform)
                 if model_type.endswith('norm'):
                     all_values = np.concatenate([v.flatten() for v in syll_vec.values()])
                     tr_min = np.min(all_values)
@@ -73,6 +75,8 @@ if __name__ == "__main__":
     parser.add_argument('--root', type=str, default='/projects/jurovlab/stat_learning/')
     parser.add_argument('--out_dir', '-od', type=str, default='data/')
     parser.add_argument('--n_freqchannels', type=int, default=16, help='Number of frequency channels for acoustic model')
+    parser.add_argument('--type_transform', type=str, default='mel', help='mel of mfcc transform for acoustic data')
+    
     args = parser.parse_args()
     main(args)
    

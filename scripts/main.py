@@ -105,7 +105,12 @@ def main(args):
                                     num_layers=num_layer,
                                     hidden_size=hidden_size,                                         
                                     loss_type=loss_type).to(device)
-                optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+                if args.optimizer == 'adam':
+                    optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+                elif args.optimizer == 'sgd':
+                    optimizer = torch.optim.SGD(model.parameters(),lr=lr)
+                else:
+                    raise ValueError("Invalid optimizer type. Choose 'adam' or 'sgd'.")
                 print(f'Creating model: {model_type}, lr: {lr}, experiment: {exp}, stimulus type: {stim_type},'
                         f'number: {simulation_num}, train batch: {batch_size_train}, test batch every: {test_frequency}')   
                 out_name = (
@@ -185,6 +190,8 @@ if __name__ == "__main__":
                         help='List of encoding types to use')
     parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'bigram', 'zerovec-bigram'], 
                         help='List of stimulus structure to use')
+    parser.add_argument('--optimizer', '-opt', type=str, choices=['adam', 'sgd'], default='adam', help='Type of optimizer')
+
     args = parser.parse_args()
     print(args)
     main(args)

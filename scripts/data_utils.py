@@ -8,7 +8,7 @@ def normalize_data(data,min_data,max_data):
     data_normed = (data - min_data) / (max_data - min_data + 1e-6)
     return(data_normed)
 
-def get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels):
+def get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels,type_transform):
     if exp==1:
         sylls = ['pa','bi','ku','ti','bu','do','go','la','tu','da','ro','pi']
     elif exp==2:
@@ -18,17 +18,17 @@ def get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels):
     elif model_type=='phon':
         syll_vec=get_phon_vecs(sylls)
     elif model_type.startswith('acoustic'):
-        syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_freqchannels)
+        syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_freqchannels, type_transform=type_transform)
     return(syll_vec)
 
 def get_onehot_vecs(sylls):
     syll_vec = {}
-    onehot = F.one_hot(torch.arange(0, 12).view(12,1,1), num_classes=12)
+    onehot = F.one_hot(torch.arange(0, 12).view(12,1), num_classes=12)
     # randomize order
     sylls = np.random.choice(sylls, size=12, replace=False)
     for i in range(12):
         syll_vec[sylls[i]] = onehot[i]
-    syll_vec['null'] = torch.zeros((1,1,12))
+    syll_vec['null'] = torch.zeros((1,12))
     return(syll_vec)
 
 def get_phon_vecs(sylls,stims_file=None):
@@ -42,23 +42,27 @@ def get_phon_vecs(sylls,stims_file=None):
     syll_vec = {}
     for itm in sylls:
         if itm not in syll_vec.keys():
-            syll_vec[itm] = np.reshape(np.vstack([encodings[itm[0]],encodings[itm[1]]]).astype('float32'),(1,1,encodings[itm[0]].shape[0]*2))
-    syll_vec['null'] = np.zeros([1,1,encodings[itm[0]].shape[-1]*2])
+            syll_vec[itm] = np.reshape(np.vstack([encodings[itm[0]],encodings[itm[1]]]).astype('float32'),(1,encodings[itm[0]].shape[0]*2))
+    syll_vec['null'] = np.zeros([1,encodings[itm[0]].shape[-1]*2])
     return(syll_vec)
 
-def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels):
-    # tgt_sr = 16000
-    n_fft=1024 #512
+def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels, type_transform='mel'):
+    # n_fft=2048 #512
     syll_vec = {}
     for syll in sylls_ex:
         y, sr = librosa.load(root_stims+syll+'.wav', sr=None)
-        print('sampling rate ', sr)
-        # audio = librosa.resample(y, orig_sr=sr, target_sr=tgt_sr)
-        # mel_specgram = librosa.feature.melspectrogram(y=audio, sr=tgt_sr, n_fft=n_fft, hop_length=n_fft//4, n_mels=n_freqchannels, window='hann')
-        mel_specgram = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=n_fft//4, n_mels=n_freqchannels, window='hann')
-        # TODO: log the mel spectrogram
-        syll_vec[syll] = np.reshape(mel_specgram[np.newaxis, :], (1, 1, -1))
-    syll_vec['null'] = np.reshape(np.zeros(mel_specgram[np.newaxis, :].shape), (1, 1, -1))
+        window_size = 0.025
+        n_fft = int(window_size * sr) 
+        step_size = 0.010
+        step_size_samples = int(step_size * sr)
+        print(f'sampling rate  {sr}, n_fft {n_fft}')
+        if type_transform == 'mel':
+            mel_specgram = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=step_size_samples, n_mels=n_freqchannels, window='hann')
+            mel_dB = librosa.power_to_db(mel_specgram, ref=0.00002)
+        else:
+            mel_dB = librosa.feature.mfcc(y=y, sr=sr,n_fft=n_fft, hop_length=step_size_samples, n_mfcc=n_freqchannels) #FIXME testing for MFCCs
+        syll_vec[syll] = np.reshape(mel_dB[np.newaxis, :], (1, -1))
+    syll_vec['null'] = np.reshape(np.zeros(mel_dB[np.newaxis, :].shape), (1, -1))
     return(syll_vec)
 
 def append_data(syll_vec,data,label_in1,label_out,condition=None,label_in2=None):
@@ -103,8 +107,8 @@ def create_train_data(transcript_df,syll_vec,stim_type):
             elif stim_type=='zerovec-bigram':
                 train = append_data(syll_vec, train, 'null', word[1], 1, word[0])
                 train = append_data(syll_vec, train, word[0], word[2], 1, word[1])
-    train_in = np.reshape(np.stack(train['data_in'], axis=0),(-1,N,syll_vec['pi'].shape[2]))
-    train_out = np.reshape(np.stack(train['data_out'], axis=0),(-1,1,syll_vec['pi'].shape[2]))
+    train_in = np.reshape(np.stack(train['data_in'], axis=0),(-1,syll_vec['pi'].shape[1]*N))
+    train_out = np.reshape(np.stack(train['data_out'], axis=0),(-1,syll_vec['pi'].shape[1]))
     labels_in=train['labels_in']
     labels_out=train['labels_out']
     conditions=train['conditions']
@@ -128,8 +132,8 @@ def create_test_data(test_items,syll_vec,stim_type):
             N = 1
             test = append_data(syll_vec, test, word[0], word[1], condition, None)
             test = append_data(syll_vec, test, word[1], word[2], condition, None)
-    test_in = np.reshape(np.stack(test['data_in'], axis=0),(-1,N,syll_vec['pi'].shape[2]))
-    test_out = np.reshape(np.stack(test['data_out'], axis=0),(-1,1,syll_vec['pi'].shape[2]))
+    test_in = np.reshape(np.stack(test['data_in'], axis=0),(-1,syll_vec['pi'].shape[1]*N))
+    test_out = np.reshape(np.stack(test['data_out'], axis=0),(-1,syll_vec['pi'].shape[1]))
     labels_in=test['labels_in']
     labels_out=test['labels_out']
     conditions=test['conditions']
@@ -138,7 +142,7 @@ def create_test_data(test_items,syll_vec,stim_type):
 def reshape_syll_vec(syll_vec_):
     syll_vec = {}
     for key in syll_vec_.keys():
-        syll_vec[key] = torch.tensor(syll_vec_[key].astype(np.float32).reshape(1, 1, -1))
+        syll_vec[key] = torch.tensor(syll_vec_[key].astype(np.float32).reshape(1, -1))
     return(syll_vec)
 
 def save_data(name,inputs,labels,conditions,out_dir,model_type):
