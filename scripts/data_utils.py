@@ -18,7 +18,10 @@ def get_syll_vec(model_type,root_raw_stims,exp,n_freqchannels,type_transform):
     elif model_type=='phon':
         syll_vec=get_phon_vecs(sylls)
     elif model_type.startswith('acoustic'):
-        syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_freqchannels, type_transform=type_transform)
+        assert model_type.endswith(('_log', '_lin')), f'unexpected acoustic model_type: {model_type}'
+        log_mel = model_type.endswith('_log')
+        syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_freqchannels, type_transform=type_transform, log_mel=log_mel)
+        # syll_vec=get_acoustic_vecs(root_raw_stims,sylls,n_freqchannels, type_transform=type_transform)
     return(syll_vec)
 
 def get_onehot_vecs(sylls):
@@ -34,7 +37,7 @@ def get_onehot_vecs(sylls):
 def get_phon_vecs(sylls,stims_file=None):
     if stims_file is None:
         stims_file = 'data/phonological_mapping.txt'
-    encoding_unigram = pd.read_csv(stims_file,header=None,sep='\n+')
+    encoding_unigram = pd.read_csv(stims_file,header=None,sep=r'\s+')
     # make encodings into a dictionary
     encodings = {}
     for i in range(encoding_unigram.shape[0]):
@@ -46,7 +49,7 @@ def get_phon_vecs(sylls,stims_file=None):
     syll_vec['null'] = np.zeros([encodings[itm[0]].shape[-1]*2])
     return(syll_vec)
 
-def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels, type_transform='mel'):
+def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels, type_transform='mel', log_mel=True):
     # n_fft=2048 #512
     syll_vec = {}
     for syll in sylls_ex:
@@ -58,11 +61,11 @@ def get_acoustic_vecs(root_stims,sylls_ex,n_freqchannels, type_transform='mel'):
         print(f'sampling rate  {sr}, n_fft {n_fft}')
         if type_transform == 'mel':
             mel_specgram = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=step_size_samples, n_mels=n_freqchannels, window='hann')
-            mel_dB = librosa.power_to_db(mel_specgram, ref=0.00002)
+            feat = librosa.power_to_db(mel_specgram, ref=0.00002) if log_mel else mel_specgram
         else:
-            mel_dB = librosa.feature.mfcc(y=y, sr=sr,n_fft=n_fft, hop_length=step_size_samples, n_mfcc=n_freqchannels) #FIXME testing for MFCCs
-        syll_vec[syll] = np.reshape(mel_dB, (-1))
-    syll_vec['null'] = np.reshape(np.zeros(mel_dB.shape), (-1))
+            feat = librosa.feature.mfcc(y=y, sr=sr,n_fft=n_fft, hop_length=step_size_samples, n_mfcc=n_freqchannels) #FIXME testing for MFCCs
+        syll_vec[syll] = np.reshape(feat, (-1))
+    syll_vec['null'] = np.reshape(np.zeros(feat.shape), (-1))
     return(syll_vec)
 
 def append_data(syll_vec,data,label_in1,label_out,condition=None,label_in2=None):

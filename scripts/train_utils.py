@@ -1,4 +1,3 @@
-from pyexpat import model
 import torch
 from torch.utils.data import  DataLoader, TensorDataset
 import numpy as np
@@ -16,7 +15,7 @@ class CreateDataset():
     def __init__(self, data, labels, conditions=None):
         self.data = torch.tensor(data, dtype=torch.float32)
         self.labels = np.array(labels, dtype=str)
-        if conditions != None:
+        if conditions is not None:
             self.conditions = torch.tensor(conditions, dtype=torch.long)
             assert len(self.data) == len(self.conditions)
         else:
@@ -59,30 +58,29 @@ def load_all_data(root_exp,model_type,input_type,batch_size_train,batch_size_tes
     return(syll_vec,in_loader,out_loader,test_in_loader,test_out_loader)
 
 
-def extract_errors(in_stim,out_stim,lossf,num_layer,device,model=None):
+def extract_errors(in_stim,out_stim,lossf,device,model=None,hidden=None):
     model.eval()
-    in_stim = in_stim.to(torch.float32).to(device)
-    out_stim = out_stim.to(torch.float32).to(device)
-    if model.__class__.__name__ == 'AE':
-        code, recon = model(in_stim)
-    elif model.__class__.__name__ == 'RNNModel':
-        h0 = torch.zeros(num_layer, in_stim.shape[0], model.hidden_size).to(device)
-        recon, hidden = model(in_stim, h0)
-        recon = recon.unsqueeze(1)
-    total_loss = float(lossf(recon, out_stim).cpu().detach().numpy())
-    recon = recon.cpu().detach().numpy()
-    return(recon,total_loss)
+    with torch.no_grad():
+        in_stim = in_stim.to(torch.float32).to(device)
+        out_stim = out_stim.to(torch.float32).to(device)
+        if model.__class__.__name__ == 'AE':
+            code, recon = model(in_stim)
+        elif model.__class__.__name__ == 'RNNModel':
+            h = hidden.clone() if hidden is not None else None
+            recon, hidden = model(in_stim, h)
+        total_loss = float(lossf(recon, out_stim).cpu().detach().numpy())
+        recon = recon.cpu().detach().numpy()
+        return(recon,total_loss)
 
-def write_out_res(res,in_stim,out_stim,in_name,out_name,condition,lossf,num_layer,device,model):
-    recon, loss_item = extract_errors(in_stim, out_stim, lossf, num_layer, device, model=model)
-    # print('recon', recon)
+def write_out_res(res,in_stim,out_stim,in_name,out_name,condition,lossf,device,model,hidden=None):
+    recon, loss_item = extract_errors(in_stim, out_stim, lossf, device, model=model, hidden=hidden)
     res['loss'].append(loss_item)
     res['in_label'].append(in_name)
     res['out_label'].append(out_name)
     res['condition'].append(condition)
     return(res)
 
-def test_model(test_in_loader,test_out_list,model,device,num_layer,batch_id,lossf,epoch_num,stim_type,model_type,lr,exp,simulation_num):
+def test_model(test_in_loader,test_out_list,model,device,batch_id,lossf,epoch_num,stim_type,model_type,lr,exp,simulation_num,hidden=None):
     res = {'condition':[],'loss':[],'in_label':[],'out_label':[]}
     for i,test_in in enumerate(test_in_loader):
         in_batch = test_in[0].to(device)
@@ -102,9 +100,9 @@ def test_model(test_in_loader,test_out_list,model,device,num_layer,batch_id,loss
                             out_label,
                             condition,
                             lossf,
-                            num_layer,
                             device,
-                            model)
+                            model,
+                            hidden=hidden)
     df=pd.DataFrame(res)
     df['batch_id']=batch_id
     df['epochs']=epoch_num
@@ -131,8 +129,8 @@ def train_model(model,
                 simulation_num,
                 model_dir,
                 out_dir,
-                out_name,
-                num_layer):
+                out_name
+                ):
     loss_track = []
 
     # Check if any results already exist
@@ -154,14 +152,14 @@ def train_model(model,
     # Else, start training from scratch
     else:
         print(f'Starting training for #{simulation_num} from scratch.')
-        test_df = test_model(test_in_loader,test_out_list,model,device,num_layer,0,loss_fun,
-                            0,stim_type,model_type,lr,exp,simulation_num)  
+        test_df = test_model(test_in_loader,test_out_list,model,device,0,loss_fun,
+                            0,stim_type,model_type,lr,exp,simulation_num,None)  
         test_df.to_csv(out_dir+f'{out_name}_ep-0.csv',compression='gzip',index=False)
         latest_ep = 1
     # Start training loop
     for epoch in range(latest_ep,epochs+1):
         test_dfs = []
-        hidden = None
+        hidden = None 
         for i, in_batch_ in enumerate(in_loader):
             model.train()
             out_batch = out_loader_list[i][0].to(device)
@@ -174,7 +172,8 @@ def train_model(model,
                     hidden = hidden.detach()
                 decoded, hidden = model(in_batch[j:j+1, :], hidden)
                 # decoded = decoded.unsqueeze(1) #TODO     
-                loss = loss_fun(decoded,out_batch)
+                assert decoded.shape == out_batch[j:j+1, :].shape, f"Shape mismatch: decoded {decoded.shape}, out_batch {out_batch[j:j+1, :].shape}"
+                loss = loss_fun(decoded,out_batch[j:j+1, :])
                 loss = loss / in_batch.shape[0]  # Average loss over the batch
                 loss.backward()
                 avg_loss += float(loss)
@@ -182,17 +181,17 @@ def train_model(model,
             loss_track.append(avg_loss)
             optimizer.step()
             if i%test_frequency==0: #FIXME 
-                test_dfs.append(test_model(test_in_loader,test_out_list,model,device,num_layer,i,loss_fun,
-                                            epoch,stim_type,model_type,lr,exp,simulation_num))
+                test_dfs.append(test_model(test_in_loader,test_out_list,model,device,i,loss_fun,
+                                            epoch,stim_type,model_type,lr,exp,simulation_num,hidden=hidden))
         test_df_epoch = pd.concat(test_dfs)
         torch.save({"epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": loss,
+                    "loss": avg_loss,
                     }, 
-                    model_dir+f'{out_name}_ep-{epoch}.pt')             
+                    os.path.join(model_dir,f'{out_name}_ep-{epoch}.pt'))             
         # torch.save(model.state_dict(), model_dir+f'{out_name}_ep-{epoch}.pt')
-        test_df_epoch.to_csv(out_dir+f'{out_name}_ep-{epoch}.csv',compression='gzip',index=False)
-        pd.DataFrame(loss_track).to_csv(out_dir+f'loss_{out_name}.csv',compression='gzip',index=False)
+        test_df_epoch.to_csv(os.path.join(out_dir,f'{out_name}_ep-{epoch}.csv'),compression='gzip',index=False)
+        pd.DataFrame(loss_track).to_csv(os.path.join(out_dir,f'loss_{out_name}.csv'),compression='gzip',index=False)
         print(f'done epoch & test #: {epoch} for #{simulation_num}')  
     return()

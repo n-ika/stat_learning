@@ -215,7 +215,7 @@ def main():
     parser.add_argument('--out_folder', '-of', type=str, help='Root directory for output data', 
                         default='results')                    
     parser.add_argument('--architecture', '-a', type=str, required=True, help='Type of model to analyze (e.g. rnn, ae)')
-    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_16_norm'], 
+    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_128_log', 'acoustic_128_lin'],
                         help='List of encoding types to use')
     parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'zerovec-bigram', 'bigram'], 
                         help='List of stimulus structure to use')

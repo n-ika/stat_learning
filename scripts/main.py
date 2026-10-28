@@ -37,15 +37,8 @@ def main(args):
 
     if loss_type == 'mse':
         loss_fun = nn.MSELoss(reduction='mean')
-        sigmoid_type = 'none'
-        sigmoid = False #TODO
-        # print("Using MSE loss: last layer should not be sigmoid")
-        print("Setting last layer to sigmoid activation") #TODO
     elif loss_type == 'bce':
         loss_fun = nn.BCELoss()
-        sigmoid_type = 'sigmoid'
-        sigmoid = True
-        print("Setting last layer to sigmoid due to BCE loss")
     else:
         raise ValueError("Invalid loss type. Choose 'mse' or 'bce'.")
 
@@ -72,19 +65,19 @@ def main(args):
                                                                                              batch_size_test)
                 test_out_list = list(test_out_loader)
                 out_loader_list = list(out_loader)
-                batch_sample = next(iter(in_loader))
+                sample_out = next(iter(out_loader))
                 
                 if model_arch == 'AE':
                     if model_type.startswith('acoustic_vec'):
                         out_size = [1,int(model_type.split('_')[-1])] #TODO
                     else:
-                        out_size = syll_vec['pi'].shape[1:]
-                    model = AE(input_size=batch_sample[0].shape[1:],
+                        out_size = syll_vec['pi'].shape[0] #[1:]
+                    model = AE(input_size=syll_vec['pi'].shape[-1],
                                 output_size=out_size,
                                 hidden_size=hidden_size,
                                 num_layers=num_layer,
                                 bottleneck_size=bottleneck_size,
-                                sigmoid=sigmoid).to(device)
+                                ).to(device)
                 elif model_arch == 'RNN':
                     if unique_init == True:
                         seed = 42
@@ -99,8 +92,12 @@ def main(args):
                         out_size = int(model_type.split('_')[-1])
                         # test_frequency = int(test_frequency*syll_vec['pi'].shape[-1])
                     else:
-                        out_size = np.prod(syll_vec['pi'].shape[1:])
-                    model = RNNModel(input_size=batch_sample[0].shape[-1],
+                        try:
+                            out_size = sample_out[0].shape[-1]
+                        except IndexError:
+                            print(sample_out)
+                            print(sample_out[0])
+                    model = RNNModel(input_size=syll_vec['pi'].shape[-1],
                                     output_size=out_size,
                                     num_layers=num_layer,
                                     hidden_size=hidden_size,                                         
@@ -116,7 +113,7 @@ def main(args):
                 out_name = (
                         f"{model_type}_{bottleneck_size}_exp-{exp}_n-{simulation_num}_lr-{lr}_train-{int(batch_size_train)}_test"
                         f"-{int(test_frequency)}_{optimizer.__class__.__name__}"
-                        f"_{loss_type}_{sigmoid_type}"
+                        f"_{loss_type}"
                     )
                 # If using unique initialization, load or save initial model state
                 if unique_init==True:
@@ -155,8 +152,8 @@ def main(args):
                             simulation_num,
                             model_dir,
                             res_dir,
-                            out_name,
-                            num_layer)
+                            out_name
+                            )
                 # all_dfs.append(test_df)
                 print(f'done model #: {simulation_num},experiment: {exp}, stimulus type: {stim_type}, model type: {model_type}')
     # df_all = pd.concat(all_dfs)
@@ -186,7 +183,7 @@ if __name__ == "__main__":
     parser.add_argument('--simulation_num', '-sn', type=int, default=0, help='Number of simulation run')
     parser.add_argument('--optional', '-o', type=str, default='', 
                         help='Optional out folder descriptor (output folder is [model type]_[loss type][optional])')
-    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_16_norm'], 
+    parser.add_argument('--encoding_types', '-et', nargs='+', default=['onehot', 'phon', 'acoustic_128_log', 'acoustic_128_lin'],
                         help='List of encoding types to use')
     parser.add_argument('--stim_structure', '-st', nargs='+', default=['unigram', 'bigram', 'zerovec-bigram'], 
                         help='List of stimulus structure to use')

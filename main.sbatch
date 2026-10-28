@@ -5,7 +5,7 @@
 #SBATCH --account=jurovlab   ### Account used for job submission
 #SBATCH --partition=gpu     #jurov     #jurov ###gpu
 #SBATCH --array=1-70           ### Array range for array jobs - 70 jobs total
-#SBATCH --job-name=mse8    ### Job Name
+#SBATCH --job-name=mse512       ### Job Name
 #SBATCH --time=1-00:00:00     ### Wall clock time limit in Days-HH:MM:SS
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
@@ -35,9 +35,9 @@ conda activate statenv
 
 # srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=bce -btr=9 -nl=1 -tf=1 -sn=${SLURM_ARRAY_TASK_ID} -ui -et=phon -st=zerovec-bigram -o='_batch9_ui' -or='/projects/jurovlab/stat_learning/interim_ui/'
 srun -u $(which python) $ROOT_PATH/scripts/main.py \
-        -ma=RNN --hidden_size=8 --loss_type=mse --num_layer=1 --test_frequency=1 \
+        -ma=RNN --hidden_size=512 --loss_type=mse --num_layer=1 --test_frequency=1 \
         --stim_structure unigram --simulation_num=${SLURM_ARRAY_TASK_ID} \
-        --out_subdir='interim8_log128/' --encoding_types='acoustic_128_norm' --optimizer='adam'
+        --out_subdir='interim_512/' --optimizer='adam' --loss_type='mse'  #--encoding_types='acoustic_128_lin'
 # srun -u $(which python) $ROOT_PATH/scripts/main.py -ma=RNN -hs=8 -lt=mse -nl=1 -tf=1 -sn=${SLURM_ARRAY_TASK_ID} -et=acoustic_vec_16 -st=unigram -or='/projects/jurovlab/stat_learning/interim9/'
 
 conda deactivate

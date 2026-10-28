@@ -22,7 +22,7 @@ def plot_lm(df, stim_type, EXP, root_out=root_out, loss_type=loss_type):
             hue='condition',
             hue_order=['Word','Part-Word'],
             # row='exp',
-            col_order=['onehot','phon','acoustic_new_norm'],
+            col_order=['onehot','phon','acoustic_128_log','acoustic_128_lin'],
             facet_kws={"sharey": False}
             )
     plt.suptitle(f'Experiment {EXP} -  Results - stimulus type: {stim_type} - 70 models',size=20,y=1.05,x=0.55)
@@ -44,7 +44,7 @@ def plot_line(df, stim_type, root_out=root_out, loss_type=loss_type):
             hue='condition',
             row='exp',
             col='model_type',
-            col_order=['onehot','phon','acoustic_new_norm'],
+            col_order=['onehot','phon','acoustic_128_log','acoustic_128_lin'],
             hue_order=['Word','Part-Word'],
             style='stat_type',
             style_order=['median', 'min', 'max', 'q1', 'q3'],
@@ -55,8 +55,10 @@ def plot_line(df, stim_type, root_out=root_out, loss_type=loss_type):
     g.set_titles(col_template="{col_name}")
     g.set_xlabels('Batch x Epoch')
     g.set_ylabels(f'{loss_type.upper()} Loss')
-    titles = ['Onehot', 'Phoneme Embedding', 'Acoustic Features']
+    titles = ['Onehot', 'Phoneme Embedding', 'Acoustic Features (log)', 'Acoustic Features (lin)']
     for ax, title in zip(g.axes[0], titles):  # for columns
+        ax.set_title(title)
+    for ax, title in zip(g.axes[1], titles):  # for columns
         ax.set_title(title)
     plt.savefig(root_out+f'plots/{stim_type}_btcep.png',bbox_inches='tight', 
                 dpi=300)

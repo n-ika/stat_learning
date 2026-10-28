@@ -4,7 +4,7 @@
 
 #SBATCH --account=jurovlab   ### Account used for job submission
 #SBATCH --partition=memory     #jurov     #jurov ###gpu
-#SBATCH --job-name=plot8  ### Job Name
+#SBATCH --job-name=plot64  ### Job Name
 #SBATCH --time=1-00:00:00     ### Wall clock time limit in Days-HH:MM:SS
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
@@ -28,7 +28,7 @@ conda activate statenv
 ### Run your actual program
 
 srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -st unigram \
-    --logy -of=results/results8_log128/ -et acoustic_128_norm
+    --logy -of=results/results_64/ #-et acoustic_128_log
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -lt=mse -et acoustic_new_norm -st unigram -lt=mse -ir=/projects/jurovlab/stat_learning/results_old/ --logy
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=mse_acoustic_vec 
 # srun -u $(which python) $ROOT_PATH/scripts/make_statplots.py -a=rnn -et acoustic_vec_1 -st unigram -lt=bce_acoustic_vec 

@@ -77,7 +77,7 @@ class RNNModel(nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.num_layers = num_layers
-        self.rnn = nn.RNN(self.input_size, self.hidden_size, num_layers=self.num_layers, batch_first=True, nonlinearity='relu')
+        self.rnn = nn.RNN(self.input_size, self.hidden_size, num_layers=self.num_layers, batch_first=True, nonlinearity='tanh')
         self.fc = nn.Linear(self.hidden_size, self.output_size)
         self.activation = nn.Sigmoid()
         
